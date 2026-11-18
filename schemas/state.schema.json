@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/state.schema.json",
+  "title": "state",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "feature_id": {
+      "type": "string",
+      "pattern": "^FEAT-\\d{3,}"
+    },
+    "title": {
+      "type": "string"
+    },
+    "request": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "created",
+        "triaging",
+        "clarifying",
+        "investigating",
+        "planning",
+        "awaiting_design_approval",
+        "executing",
+        "verifying_tasks",
+        "integrating",
+        "awaiting_final_approval",
+        "ready_to_merge",
+        "completed",
+        "blocked",
+        "rework_required",
+        "cancelled",
+        "failed"
+      ]
+    },
+    "state_before_block": {
+      "enum": [
+        "created",
+        "triaging",
+        "clarifying",
+        "investigating",
+        "planning",
+        "awaiting_design_approval",
+        "executing",
+        "verifying_tasks",
+        "integrating",
+        "awaiting_final_approval",
+        "ready_to_merge",
+        "completed",
+        "blocked",
+        "rework_required",
+        "cancelled",
+        "failed",
+        null
+      ]
+    },
+    "block_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "block_kind": {
+      "enum": [
+        "manual",
+        "escalation",
+        null
+      ]
+    },
+    "mode": {
+      "enum": [
+        "L0",
+        "L1",
+        "L2",
+        "L3",
+        null
+      ]
+    },
+    "mode_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "routing": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "axes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "basis": {
+                "type": "string"
+              },
+              "confirmed": {
+                "type": "boolean"
+              },
+              "confidence": {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "score",
+              "basis"
+            ]
+          }
+        }
+      }
+    },
+    "required_gates": {
+      "type": "object",
+      "properties": {
+        "design": {
+          "type": "boolean"
+        },
+        "final": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "design",
+        "final"
+      ]
+    },
+    "gate_reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gate": {
+            "enum": [
+              "design",
+              "final"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sticky": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "gate",
+          "reason"
+        ]
+      }
+    },
+    "approvals": {
+      "type": "object",
+      "properties": {
+        "design": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "final": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "design",
+        "final"
+      ]
+    },
+    "invalidated_approvals": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "git": {
+      "type": "object"
+    },
+    "github": {
+      "type": "object"
+    },
+    "parallel": {
+      "type": "object",
+      "properties": {
+        "integration_branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktrees": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "task_id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "base_sha": {
+                "type": "string"
+              },
+              "integration_branch": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "active",
+                  "merged",
+                  "removed",
+                  "discarded"
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "branch",
+              "status"
+            ]
+          }
+        },
+        "batches": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "feature_id",
+    "state",
+    "required_gates",
+    "approvals"
+  ]
+}

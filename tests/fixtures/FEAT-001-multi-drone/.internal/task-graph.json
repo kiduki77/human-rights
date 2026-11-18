@@ -1,0 +1,170 @@
+{
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "feature_id": "FEAT-001",
+      "title": "Per-vehicle connection sessions",
+      "purpose": "Replace the global single-connection object with a registry of sessions keyed by system_id",
+      "responsibility": "connection lifecycle and vehicle identity",
+      "status": "planned",
+      "depends_on": [],
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-005"
+      ],
+      "scope": {
+        "modules": [
+          "vehicle_connection"
+        ],
+        "paths": [
+          "src/link/registry.py",
+          "src/link/session.py"
+        ]
+      },
+      "contracts": {
+        "provides": [
+          "VehicleRegistry"
+        ],
+        "consumes": []
+      },
+      "acceptance_criteria": [
+        {
+          "id": "AC-T1-1",
+          "text": "Sessions can be looked up, added and removed by system_id; duplicate ids are refused"
+        }
+      ],
+      "verification": [
+        "TEST-001",
+        "TEST-012"
+      ],
+      "risk": "medium",
+      "human_review": "optional"
+    },
+    {
+      "id": "TASK-002",
+      "feature_id": "FEAT-001",
+      "title": "Route commands to the selected vehicle",
+      "purpose": "Make every command path go out through exactly one selected session",
+      "responsibility": "deciding the command target",
+      "status": "planned",
+      "depends_on": [
+        "TASK-001"
+      ],
+      "requirement_ids": [
+        "REQ-002",
+        "REQ-006"
+      ],
+      "scope": {
+        "modules": [
+          "command"
+        ],
+        "paths": [
+          "src/command/router.py"
+        ]
+      },
+      "contracts": {
+        "provides": [
+          "CommandTarget"
+        ],
+        "consumes": [
+          "VehicleRegistry"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "AC-T2-1",
+          "text": "Commands are refused when no vehicle is selected"
+        },
+        {
+          "id": "AC-T2-2",
+          "text": "A target switch requested while waiting for an ACK applies after the ACK or the timeout"
+        }
+      ],
+      "verification": [
+        "TEST-002"
+      ],
+      "risk": "high",
+      "human_review": "required"
+    },
+    {
+      "id": "TASK-003",
+      "feature_id": "FEAT-001",
+      "title": "Per-vehicle reconnection",
+      "purpose": "Isolate link failures so they do not propagate to other vehicles",
+      "responsibility": "failure isolation",
+      "status": "planned",
+      "depends_on": [
+        "TASK-001"
+      ],
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "scope": {
+        "modules": [
+          "vehicle_connection"
+        ],
+        "paths": [
+          "src/link/reconnect.py"
+        ]
+      },
+      "contracts": {
+        "provides": [],
+        "consumes": [
+          "VehicleRegistry"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "AC-T3-1",
+          "text": "Disconnecting one vehicle does not change any other vehicle's connection"
+        }
+      ],
+      "verification": [
+        "TEST-003"
+      ],
+      "risk": "high",
+      "human_review": "required"
+    },
+    {
+      "id": "TASK-004",
+      "feature_id": "FEAT-001",
+      "title": "Vehicle selection UI",
+      "purpose": "Let the operator pick the target vehicle unambiguously and see which one is selected",
+      "responsibility": "showing the selection state",
+      "status": "planned",
+      "depends_on": [
+        "TASK-002"
+      ],
+      "requirement_ids": [
+        "REQ-002",
+        "REQ-003"
+      ],
+      "scope": {
+        "modules": [
+          "ui"
+        ],
+        "paths": [
+          "src/ui/vehicle_selector.py"
+        ]
+      },
+      "contracts": {
+        "provides": [],
+        "consumes": [
+          "CommandTarget"
+        ]
+      },
+      "acceptance_criteria": [
+        {
+          "id": "AC-T4-1",
+          "text": "The selected vehicle is always highlighted and command buttons show the target vehicle's name"
+        }
+      ],
+      "verification": [
+        "TEST-004"
+      ],
+      "risk": "medium",
+      "human_review": "optional"
+    }
+  ]
+}

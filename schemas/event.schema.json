@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/event.schema.json",
+  "title": "event",
+  "type": "object",
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event": {
+      "type": "string"
+    },
+    "feature_id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "string"
+    },
+    "prev_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hash": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "seq",
+    "event",
+    "feature_id",
+    "timestamp",
+    "hash"
+  ]
+}

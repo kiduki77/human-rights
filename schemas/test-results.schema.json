@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/test-results.schema.json",
+  "title": "test-results",
+  "type": "object",
+  "properties": {
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "test_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "error",
+              "manual_passed",
+              "manual_failed"
+            ]
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code_tree": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dirty": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "worktree_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "environment": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "log_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "log_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_by": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": "string"
+          },
+          "worktree_task": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "task whose worktree the run executed in"
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "duration_s": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "run_id",
+          "test_id",
+          "status",
+          "recorded_by"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "runs"
+  ]
+}

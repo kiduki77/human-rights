@@ -1,0 +1,8 @@
+{
+  "name": "human-rights",
+  "displayName": "human-rights",
+  "version": "0.3.0",
+  "description": "Human-led, AI-executed development workflow. AI writes the code; humans own the decisions. Adaptive L0-L3 routing, intent elicitation, review-aware task DAGs, integration test plans approved before coding, evidence-bound verification, and explicit human design/final gates enforced by a small deterministic runtime.",
+  "keywords": ["workflow", "human-in-the-loop", "approval-gates", "verification", "skills", "claude-code", "agentic-coding"],
+  "license": "MIT"
+}

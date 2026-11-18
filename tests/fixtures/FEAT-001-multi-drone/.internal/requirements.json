@@ -1,0 +1,146 @@
+{
+  "revision": 2,
+  "goal": "Connect several vehicles to one GCS at the same time and send commands only to the selected one",
+  "users": "One GCS operator monitoring and controlling up to 4 vehicles at once",
+  "scope": {
+    "in": [
+      "simultaneous connections (up to 4)",
+      "vehicle selection UI",
+      "routing commands to the selected vehicle",
+      "isolating per-vehicle link failures"
+    ],
+    "out": [
+      "swarm flight (one command to many vehicles)",
+      "collision avoidance between vehicles",
+      "multiple remote GCS instances"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Connect and keep up to 4 vehicles connected at once",
+      "priority": "must",
+      "source": "user",
+      "acceptance": [
+        {
+          "id": "AC-001",
+          "text": "With 4 SITL vehicles connected for 10 minutes, every vehicle's heartbeat arrives at most 1 s apart"
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "text": "Commands go only to the currently selected vehicle",
+      "priority": "must",
+      "source": "user",
+      "acceptance": [
+        {
+          "id": "AC-002",
+          "text": "With vehicle B selected, every command sent has target_system B, and A/C/D receive none"
+        }
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "text": "Per-vehicle telemetry and state never mix",
+      "priority": "must",
+      "source": "user",
+      "acceptance": [
+        {
+          "id": "AC-003",
+          "text": "While receiving telemetry from 4 vehicles, each vehicle panel shows only values from its own system_id"
+        }
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "text": "A link failure on one vehicle does not affect control of the others",
+      "priority": "must",
+      "source": "user",
+      "acceptance": [
+        {
+          "id": "AC-004",
+          "text": "While vehicle A's link is cut, command latency for vehicle B stays within the single-vehicle baseline +50 ms"
+        }
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "text": "The existing single-vehicle workflow keeps working unchanged",
+      "priority": "must",
+      "source": "code",
+      "acceptance": [
+        {
+          "id": "AC-005",
+          "text": "All existing single-vehicle regression tests pass"
+        }
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "text": "A deselected vehicle keeps executing its current mission",
+      "priority": "must",
+      "source": "user",
+      "acceptance": [
+        {
+          "id": "AC-006",
+          "text": "Switching selection from A (in an AUTO mission) to B does not change A's mode or waypoint progress"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "question": "Maximum simultaneous vehicles",
+      "answer": "4",
+      "decided_by": "user",
+      "safety": false
+    },
+    {
+      "id": "DEC-002",
+      "question": "Does a deselected vehicle keep its mission?",
+      "answer": "Yes, it keeps the mission (no automatic LOITER)",
+      "decided_by": "user",
+      "safety": true
+    },
+    {
+      "id": "DEC-003",
+      "question": "Changing the target while a command is in flight",
+      "answer": "Switch only after the pending command's ACK (or a 3 s timeout)",
+      "decided_by": "user",
+      "safety": true
+    },
+    {
+      "id": "DEC-004",
+      "question": "Link protocol",
+      "answer": "Keep the existing MAVLink library",
+      "decided_by": "code",
+      "safety": false
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-001",
+      "text": "Should a deselected vehicle keep its mission, or switch to LOITER?",
+      "blocking": true,
+      "safety": true,
+      "status": "answered"
+    },
+    {
+      "id": "Q-002",
+      "text": "UI message when a 5th vehicle tries to connect",
+      "blocking": false,
+      "safety": false,
+      "status": "open",
+      "proposed_default": "Toast: 'Up to 4 vehicles can be connected'"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "ASM-001",
+      "text": "Each vehicle has a unique system_id (duplicates are refused)",
+      "risk": "low"
+    }
+  ]
+}

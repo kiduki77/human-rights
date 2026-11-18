@@ -1,0 +1,137 @@
+{
+  "tests": [
+    {
+      "id": "TEST-001",
+      "title": "Registry unit tests",
+      "type": "unit",
+      "level": "task",
+      "task_ids": [
+        "TASK-001"
+      ],
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "command": "pytest tests/unit/test_registry.py",
+      "environment": "local",
+      "pass_criteria": "all pass",
+      "required": true
+    },
+    {
+      "id": "TEST-002",
+      "title": "Command routing unit tests",
+      "type": "unit",
+      "level": "task",
+      "task_ids": [
+        "TASK-002"
+      ],
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "command": "pytest tests/unit/test_command_router.py",
+      "environment": "local",
+      "pass_criteria": "all pass",
+      "required": true
+    },
+    {
+      "id": "TEST-003",
+      "title": "Reconnection isolation test",
+      "type": "integration",
+      "level": "task",
+      "task_ids": [
+        "TASK-003"
+      ],
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "command": "pytest tests/integration/test_reconnection.py",
+      "environment": "sitl",
+      "pass_criteria": "all pass",
+      "required": true
+    },
+    {
+      "id": "TEST-004",
+      "title": "Vehicle selector component tests",
+      "type": "component",
+      "level": "task",
+      "task_ids": [
+        "TASK-004"
+      ],
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "command": "pytest tests/ui/test_vehicle_selector.py",
+      "environment": "local",
+      "pass_criteria": "all pass",
+      "required": true
+    },
+    {
+      "id": "TEST-010",
+      "title": "4x SITL: commands reach only the selected vehicle",
+      "type": "e2e",
+      "level": "integration",
+      "task_ids": [
+        "TASK-002",
+        "TASK-004"
+      ],
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003"
+      ],
+      "command": "pytest tests/e2e/test_multi_vehicle_command.py --sitl 4",
+      "environment": "sitl-4",
+      "pass_criteria": "AC-001, AC-002 and AC-003 met",
+      "required": true
+    },
+    {
+      "id": "TEST-011",
+      "title": "4x SITL: link failure isolation",
+      "type": "integration",
+      "level": "integration",
+      "task_ids": [
+        "TASK-003"
+      ],
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "command": "pytest tests/e2e/test_link_failure_isolation.py --sitl 4",
+      "environment": "sitl-4",
+      "pass_criteria": "AC-004 met (vehicle B command latency within +50 ms)",
+      "required": true
+    },
+    {
+      "id": "TEST-012",
+      "title": "Single-vehicle regression",
+      "type": "regression",
+      "level": "integration",
+      "task_ids": [
+        "TASK-001"
+      ],
+      "requirement_ids": [
+        "REQ-005"
+      ],
+      "command": "pytest tests/regression -m single_vehicle",
+      "environment": "sitl-1",
+      "pass_criteria": "all pass",
+      "required": true
+    },
+    {
+      "id": "TEST-013",
+      "title": "Mission kept while switching selection (human check)",
+      "type": "safety",
+      "level": "integration",
+      "task_ids": [
+        "TASK-002"
+      ],
+      "requirement_ids": [
+        "REQ-006"
+      ],
+      "command": null,
+      "procedure": "Two SITL vehicles in AUTO missions; switch selection A->B five times while screen-recording; confirm A's mode and waypoint progress never change",
+      "environment": "sitl-2 + operator",
+      "pass_criteria": "AC-006 met, link to the recording",
+      "required": true,
+      "automation": "manual"
+    }
+  ]
+}

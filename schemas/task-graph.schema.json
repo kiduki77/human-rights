@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/task-graph.schema.json",
+  "title": "task-graph",
+  "type": "object",
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^TASK-\\d+"
+          },
+          "feature_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "planned",
+              "in_progress",
+              "implemented",
+              "verified",
+              "rework_required",
+              "blocked",
+              "cancelled"
+            ]
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "modules": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "provides": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "consumes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": true
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true,
+              "required": [
+                "id",
+                "text"
+              ]
+            }
+          },
+          "verification": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risk": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "human_review": {
+            "enum": [
+              "required",
+              "optional"
+            ]
+          },
+          "verified_evidence": {
+            "type": "object"
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "shared resources (DB, port, device, SITL rig); tasks sharing one never run in parallel"
+          },
+          "parallel_safe": {
+            "type": "boolean",
+            "description": "false: never run this task in parallel with another"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "purpose",
+          "acceptance_criteria",
+          "verification"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "tasks"
+  ]
+}

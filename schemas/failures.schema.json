@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/failures.schema.json",
+  "title": "failures",
+  "type": "object",
+  "properties": {
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FAIL-\\d+"
+          },
+          "test_id": {
+            "type": "string"
+          },
+          "requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suspect_tasks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "observed": {
+            "type": "string"
+          },
+          "expected": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "run_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cause_type": {
+            "enum": [
+              "unclassified",
+              "implementation",
+              "interface",
+              "design",
+              "test_env"
+            ]
+          },
+          "confirmed_cause": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fix_task": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retest": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retry_count": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "escalated",
+              "resolved"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "test_id",
+          "status",
+          "retry_count"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "failures"
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/test-plan.schema.json",
+  "title": "test-plan",
+  "type": "object",
+  "properties": {
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^TEST-\\d+"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "unit",
+              "component",
+              "contract",
+              "integration",
+              "e2e",
+              "regression",
+              "security",
+              "safety",
+              "performance",
+              "manual"
+            ]
+          },
+          "level": {
+            "enum": [
+              "task",
+              "integration"
+            ]
+          },
+          "task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "environment": {
+            "type": "string"
+          },
+          "pass_criteria": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "automation": {
+            "enum": [
+              "automated",
+              "manual"
+            ]
+          },
+          "parallel_safe": {
+            "type": "boolean",
+            "description": "opt-in: may run concurrently with other parallel-safe tests"
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "tests sharing a resource never run concurrently"
+          },
+          "exclusive": {
+            "type": "boolean",
+            "description": "always run alone"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "type",
+          "level",
+          "pass_criteria"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "tests"
+  ]
+}
