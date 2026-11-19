@@ -6,6 +6,7 @@ import time
 import unittest
 from pathlib import Path
 
+from helpers import ONE
 from helpers import EXAMPLE, L3_AXES, PLUGIN, PY, Repo, git, install_example_plan
 from runtime.scheduler.dag import plan_batch, task_conflicts, test_batches
 
@@ -103,7 +104,7 @@ class ParallelFlowTest(unittest.TestCase):
         r = self.r
         r.hr("init")
         r.hr("new", "Multi-vehicle control", "--slug", "multi-drone")
-        r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
         fdir = install_example_plan(r)
         plan = json.loads((fdir / ".internal/test-plan.json").read_text(encoding="utf-8"))
         for t in plan["tests"]:
@@ -264,7 +265,7 @@ class TemplatesMetricsTest(unittest.TestCase):
         self.r = Repo()
         self.r.hr("init")
         self.r.hr("new", "Multi-vehicle control")
-        self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        self.r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
 
     def tearDown(self):
         self.r.cleanup()

@@ -41,6 +41,7 @@ INTERNAL_FILES = {
     "test_plan": "test-plan.json",
     "test_results": "test-results.json",
     "failures": "failures.json",
+    "split": "split.json",
 }
 
 LOCK_STALE_AFTER = 30
@@ -302,12 +303,16 @@ def new_state(fid: str, title: str, request: str) -> Dict[str, Any]:
         "state_before_block": None,
         "block_reason": None,
         "block_kind": None,
+        "kind": "feature",
+        "parent": None,
+        "size": None,
         "mode": None,
         "mode_history": [],
         "routing": None,
         "required_gates": {"design": False, "final": False},
         "gate_reasons": [],
-        "approvals": {"design": None, "final": None},
+        "approvals": {"design": None, "final": None, "split": None},
+        "children": [],
         "invalidated_approvals": [],
         "git": {"branch": None, "base_sha": None, "last_seen_head": None},
         "github": {"feature_issue": None, "task_issues": {}, "prs": {}, "commits": {}, "last_synced_at": None},

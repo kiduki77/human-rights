@@ -78,35 +78,10 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
         if d.get("safety") and d.get("decided_by") != "user":
             hard.append(f"risky policy {d.get('id')} decided without the user (decided_by={d.get('decided_by')})")
 
-    from runtime.verification.evidence import runner_of
-
     strict = mode in ("L2", "L3")
-    for tid, t in tests.items():
-        runner = runner_of(t)
-        steps = t.get("steps") or []
-        if runner == "command" and not t.get("command"):
-            hard.append(f"{tid}: runner is command but there is no command")
-        if runner != "command":
-            if not steps:
-                hard.append(f"{tid}: a test run by {'an agent' if runner == 'agent' else 'a human'} needs `steps`, "
-                            "each with what to do and the observable result that counts as a pass")
-            for i, s in enumerate(steps, 1):
-                if not isinstance(s, dict) or not str(s.get("do") or "").strip() or not str(s.get("expect") or "").strip():
-                    hard.append(f"{tid}: step {i} needs both `do` and `expect` (the pass criterion for that step)")
-        if runner == "human" and not str(t.get("human_reason") or "").strip():
-            hard.append(f"{tid}: run by a human without `human_reason` - say why a script or an agent cannot do it, "
-                        "or make it an agent test")
-        if not t.get("pass_criteria"):
-            hard.append(f"{tid}: missing pass_criteria")
-        if strict and t.get("level") == "integration" and t.get("required", True) and not t.get("estimated_seconds"):
-            warn.append(f"{tid}: no estimated_seconds - the reviewer cannot see what this plan costs to run")
-        if t.get("type") not in TEST_TYPES:
-            warn.append(f"{tid}: unknown type {t.get('type')!r}")
-        if t.get("level") not in ("task", "integration"):
-            hard.append(f"{tid}: level must be task|integration")
-        for x in t.get("task_ids", []):
-            if x not in tasks:
-                hard.append(f"{tid}: references unknown task {x}")
+    t_hard, t_warn = test_problems(tests, tasks, strict)
+    hard += t_hard
+    warn += t_warn
 
     req_ids = {r.get("id") for r in reqs}
     for tid, t in tasks.items():
@@ -199,6 +174,40 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
                 warn.append(f"{a}/{b}: change the same paths without a dependency ({', '.join(sorted(shared))}) - do not run in parallel")
 
     return {"ok": not hard, "hard_fail": hard, "warnings": warn, "coverage": coverage}
+
+
+def test_problems(tests: Dict[str, Dict[str, Any]], tasks: Dict[str, Dict[str, Any]], strict: bool):
+    from runtime.verification.evidence import runner_of
+
+    hard: List[str] = []
+    warn: List[str] = []
+    for tid, t in tests.items():
+        runner = runner_of(t)
+        steps = t.get("steps") or []
+        if runner == "command" and not t.get("command"):
+            hard.append(f"{tid}: runner is command but there is no command")
+        if runner != "command":
+            if not steps:
+                hard.append(f"{tid}: a test run by {'an agent' if runner == 'agent' else 'a human'} needs `steps`, "
+                            "each with what to do and the observable result that counts as a pass")
+            for i, s in enumerate(steps, 1):
+                if not isinstance(s, dict) or not str(s.get("do") or "").strip() or not str(s.get("expect") or "").strip():
+                    hard.append(f"{tid}: step {i} needs both `do` and `expect` (the pass criterion for that step)")
+        if runner == "human" and not str(t.get("human_reason") or "").strip():
+            hard.append(f"{tid}: run by a human without `human_reason` - say why a script or an agent cannot do it, "
+                        "or make it an agent test")
+        if not t.get("pass_criteria"):
+            hard.append(f"{tid}: missing pass_criteria")
+        if strict and t.get("level") == "integration" and t.get("required", True) and not t.get("estimated_seconds"):
+            warn.append(f"{tid}: no estimated_seconds - the reviewer cannot see what this plan costs to run")
+        if t.get("type") not in TEST_TYPES:
+            warn.append(f"{tid}: unknown type {t.get('type')!r}")
+        if t.get("level") not in ("task", "integration"):
+            hard.append(f"{tid}: level must be task|integration")
+        for x in t.get("task_ids", []):
+            if x not in tasks:
+                hard.append(f"{tid}: references unknown task {x}")
+    return hard, warn
 
 
 def topo_order(graph: Dict[str, Any]) -> List[str]:

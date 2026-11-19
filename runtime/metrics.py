@@ -16,7 +16,7 @@ MANUAL_KINDS = {
     "unnecessary_question": "a question whose answer changed neither design nor result",
     "question_asked": "a question asked during elicitation (denominator for unnecessary questions)",
 }
-WAIT_STATES = ("awaiting_design_approval", "awaiting_final_approval")
+WAIT_STATES = ("awaiting_design_approval", "awaiting_final_approval", "awaiting_split_approval")
 
 
 def _ts(s: str) -> datetime.datetime:

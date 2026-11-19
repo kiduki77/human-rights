@@ -4,6 +4,7 @@ import subprocess
 import sys
 import unittest
 
+from helpers import ONE
 from helpers import L3_AXES, PLUGIN, Repo, install_example_plan
 from runtime import docs, redpill
 from runtime.state.store import Workspace
@@ -38,7 +39,7 @@ class RedpillBase(unittest.TestCase):
         r = self.r
         r.hr("init")
         r.hr("new", "Multi-vehicle control", "--slug", "multi-drone")
-        r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
         install_example_plan(r)
         r.hr("transition", "planning")
 
@@ -64,7 +65,7 @@ class DesignDrillTest(RedpillBase):
 
     def test_rubber_stamp_is_scolded_until_the_plant_is_caught(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         design_before = (r.feature_dir() / "design.md").read_text(encoding="utf-8")
         self.assertEqual(r.hr("transition", "awaiting_design_approval")[0], 0)
         act = self.drill()["active"]
@@ -93,7 +94,8 @@ class DesignDrillTest(RedpillBase):
         code, out = r.hr("approve", "design", "--by", "alice")
         self.assertEqual(code, 0, out)
         self.assertEqual(r.state()["state"], "executing")
-        self.assertEqual(redpill.stats(self.feature())["caught"], 1)
+        st = redpill.stats(self.feature())
+        self.assertEqual((st["caught"], st["caught_after_refusal"]), (0, 1))
 
         r.hr("task", "TASK-001", "in_progress")
         r.hr("render")
@@ -102,7 +104,7 @@ class DesignDrillTest(RedpillBase):
 
     def test_reveal_counts_as_missed(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "awaiting_design_approval")
         planted = self.drill()["active"]["id"]
         r.hr("approve", "design", "--by", "alice")
@@ -115,7 +117,7 @@ class DesignDrillTest(RedpillBase):
 
     def test_change_request_ends_the_drill_and_resubmission_rolls_again(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "awaiting_design_approval")
         r.hr("reject", "design", "--reason", "TEST-014 makes no sense", "--to", "planning")
         data = self.drill()
@@ -126,20 +128,20 @@ class DesignDrillTest(RedpillBase):
 
     def test_planted_task_row_passes_doc_check(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "awaiting_design_approval")
         f = self.feature()
         redpill.on_enter_state(f, "awaiting_design_approval", rng=StubRng(0.1))
         docs.render(f)
         act = self.drill()["active"]
         self.assertEqual((act["kind"], act["id"]), ("plan", "TASK-005"))
-        self.assertIn("| TASK-005 | Temporarily disable validation", self.overview())
+        self.assertIn("| [TASK-005](tasks/TASK-005.md) | Temporarily disable validation", self.overview())
         code, out = r.hr("doc-check")
         self.assertEqual(code, 0, out)
 
     def test_korean_scolding(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1", "--language", "ko")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin", "--language", "ko")
         r.hr("transition", "awaiting_design_approval")
         code, out = r.hr("approve", "design", "--by", "alice")
         self.assertEqual(code, 3)
@@ -150,7 +152,7 @@ class DesignDrillTest(RedpillBase):
 class FinalDrillTest(RedpillBase):
     def test_fake_pass_in_final_results(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1", "--gates", "final")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin", "--gates", "final")
         r.hr("transition", "awaiting_design_approval")
         self.assertIsNone(self.drill()["active"], "design gate not drilled when --gates final")
         self.assertEqual(r.hr("approve", "design", "--by", "alice")[0], 0)
@@ -178,7 +180,7 @@ class FinalDrillTest(RedpillBase):
         self.assertEqual(code, 0, out)
         self.assertEqual(r.state()["state"], "ready_to_merge")
         m = json.loads(r.hr("metrics", "--json")[1])
-        self.assertEqual(m["redpill"]["caught"], 1)
+        self.assertEqual((m["redpill"]["caught"], m["redpill"]["caught_after_refusal"]), (0, 1))
 
 
 class ConfigAndGuardTest(unittest.TestCase):
@@ -192,7 +194,7 @@ class ConfigAndGuardTest(unittest.TestCase):
         r = Repo(use_git=False)
         try:
             r.hr("init")
-            r.hr("redpill", "on", "--one-in", "5", "--gates", "design")
+            r.hr("redpill", "on", "--one-in", "5", "--author", "builtin", "--gates", "design")
             ws = Workspace(r.root)
             s = redpill.settings(ws)
             self.assertEqual((s["enabled"], s["one_in"], s["gates"]), (True, 5, ["design"]))
@@ -202,7 +204,7 @@ class ConfigAndGuardTest(unittest.TestCase):
             self.assertIn("Red pill mode: off", out)
             self.assertFalse(redpill.settings(ws)["enabled"])
             self.assertEqual(redpill.settings(ws)["one_in"], 5)
-            self.assertEqual(r.hr("redpill", "on", "--one-in", "0")[0], 2)
+            self.assertEqual(r.hr("redpill", "on", "--one-in", "0", "--author", "builtin")[0], 2)
         finally:
             r.cleanup()
 

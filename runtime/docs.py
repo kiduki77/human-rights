@@ -11,6 +11,9 @@ from runtime.state.store import Feature
 BLOCK_RE = r"<!-- hr:{name}:start -->.*?<!-- hr:{name}:end -->"
 PLACEHOLDER_RE = re.compile(r"\[FILL(?::[^\]]*)?\]")
 
+GROUP_STRUCTURE = {
+    "overview.md": {"blocks": ["status", "features", "shared", "excluded", "results", "steps"], "min_sections": 4},
+}
 STRUCTURE = {
     "overview.md": {"blocks": ["status", "decisions", "results"], "min_sections": 4},
     "requirements.md": {"blocks": [], "min_sections": 3},
@@ -37,6 +40,8 @@ def status_block(feature: Feature) -> str:
     st = feature.state()
     ds, fs = design_status(feature, st), final_status(feature, st)
     lang = lang_of(feature.ws)
+    if st.get("kind") == "group":
+        return _group_status_block(feature, st, lang)
 
     def gate(required: bool, s: Dict[str, Any]) -> str:
         if not required:
@@ -56,7 +61,117 @@ def status_block(feature: Feature) -> str:
         f"| {t(lang, 'final_approval')} | {gate(st['required_gates']['final'], fs)} |",
         f"| {t(lang, 'next_decision')} | {next_human_decision(feature, st, lang) or t(lang, 'none')} |",
     ]
+    if st.get("parent"):
+        lines.insert(3, f"| {t(lang, 'part_of')} | {st['parent']} |")
     return "\n".join(lines)
+
+
+def _group_status_block(feature: Feature, st: Dict[str, Any], lang: str) -> str:
+    from runtime import groups
+    from runtime.state.machine import STATE_LABELS, next_human_decision
+
+    ss = groups.split_status(feature, st)
+    if ss["valid"]:
+        approval = t(lang, "approved", who=ss["approval"]["approver"], at=ss["approval"]["approved_at"])
+    else:
+        approval = t(lang, "pending")
+    rows = groups.children_of(feature, st)
+    total = len(rows) or len(groups.split_of(feature).get("children", []))
+    done = sum(1 for r in rows if r["state"] == "completed")
+    label = state_label(lang, st["state"], STATE_LABELS.get(st["state"], st["state"]))
+    lines = [
+        f"| {t(lang, 'item')} | {t(lang, 'value')} |",
+        "|---|---|",
+        f"| {t(lang, 'state')} | **{label}** (`{st['state']}`) |",
+        f"| {t(lang, 'mode')} | {t(lang, 'group')} |",
+        f"| {t(lang, 'split_approval')} | {approval} |",
+        f"| {t(lang, 'progress')} | {t(lang, 'progress_value', done=done, total=total)} |",
+        f"| {t(lang, 'next_decision')} | {next_human_decision(feature, st, lang) or t(lang, 'none')} |",
+    ]
+    if st.get("parent"):
+        lines.insert(3, f"| {t(lang, 'part_of')} | {st['parent']} |")
+    source = groups.split_of(feature).get("source") or {}
+    if source.get("path"):
+        lines.insert(3, f"| {t(lang, 'source_document')} | `{_cell(source['path'])}` |")
+    return "\n".join(lines)
+
+
+def _node_label(text: Any) -> str:
+    return re.sub(r"[\[\]{}()\"|<>`]", " ", str(text or "")).strip()
+
+
+def features_block(feature: Feature) -> str:
+    from runtime import groups
+    from runtime.state.machine import STATE_LABELS
+
+    lang = lang_of(feature.ws)
+    st = feature.state()
+    kids = groups.split_of(feature).get("children", [])
+    if not kids:
+        return t(lang, "no_features")
+    linked = {r["key"]: r for r in groups.children_of(feature, st)}
+    order = {k: i for i, k in enumerate(groups._order(feature))}
+    kids = sorted(kids, key=lambda c: order.get(c.get("key"), len(order)))
+    ids = {c.get("key"): f"f{i}" for i, c in enumerate(kids, 1)}
+    graph = ["```mermaid", "flowchart LR"]
+    for c in kids:
+        graph.append(f"  {ids[c.get('key')]}[\"{_node_label(c.get('title'))}\"]")
+    for c in kids:
+        for d in c.get("depends_on", []) or []:
+            if d in ids:
+                graph.append(f"  {ids[d]} --> {ids[c.get('key')]}")
+    graph.append("```")
+    with_sources = any(c.get("sources") for c in kids)
+    with_code = any(c.get("code_status") for c in kids)
+    head = ["#", t(lang, "feature"), t(lang, "outcome"), t(lang, "verify_alone"), t(lang, "built_on")]
+    if with_sources:
+        head.append(t(lang, "sources"))
+    if with_code:
+        head.append(t(lang, "code_now"))
+    head += [t(lang, "expected_mode"), t(lang, "state")]
+    lines = graph + ["", "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for i, c in enumerate(kids, 1):
+        link = linked.get(c.get("key"))
+        name = f"**{_cell(c.get('title'))}** (`{c.get('key')}`)"
+        if link:
+            name += f"<br>{link['feature_id']}"
+        cells = [str(i), name, _cell(c.get("outcome")), _cell(c.get("verify_alone")),
+                 ", ".join(c.get("depends_on", []) or []) or "-"]
+        if with_sources:
+            cells.append(_cell(", ".join(str(s) for s in c.get("sources") or []) or "-"))
+        if with_code:
+            cells.append(value(lang, "code_status", c.get("code_status") or "-"))
+        state = "-"
+        if link:
+            state = state_label(lang, link["state"], STATE_LABELS.get(link["state"], link["state"]))
+        cells += [link["mode"] if link and link["mode"] else (c.get("expected_mode") or "-"), state]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def shared_block(feature: Feature) -> str:
+    from runtime import groups
+
+    lang = lang_of(feature.ws)
+    return _decision_tables(lang, groups.split_of(feature).get("shared_decisions") or [], []) or t(lang, "no_shared")
+
+
+def excluded_block(feature: Feature) -> str:
+    from runtime import groups
+
+    lang = lang_of(feature.ws)
+    split = groups.split_of(feature)
+    out: List[str] = []
+    left = split.get("excluded") or []
+    if left:
+        out += [f"| {t(lang, 'left_out')} | {t(lang, 'why_not')} | {t(lang, 'sources')} |", "|---|---|---|"]
+        out += [f"| {_cell(e.get('item'))} | {_cell(e.get('reason'))} | "
+                f"{_cell(', '.join(str(s) for s in e.get('sources') or []) or '-')} |" for e in left]
+    unread = (split.get("source") or {}).get("unread") or []
+    if unread:
+        out += ["", f"**⚠️ {t(lang, 'unread')}**", "", f"| {t(lang, 'part')} | {t(lang, 'reason')} |", "|---|---|"]
+        out += [f"| {_cell(u.get('ref'))} | {_cell(u.get('reason'))} |" for u in unread]
+    return "\n".join(out).strip() or t(lang, "no_excluded")
 
 
 def tasks_block(feature: Feature) -> str:
@@ -110,7 +225,9 @@ def results_block(feature: Feature) -> str:
     total = sum(float(r["test"].get("estimated_seconds") or 0) for r in summ["rows"])
     if total:
         lines.append(f"{t(lang, 'estimated_total')}: {_duration(lang, total)}")
-    head = [t(lang, k) for k in ("requirement", "test", "run_by", "pass_criteria", "result", "evidence")]
+    group = feature.state().get("kind") == "group"
+    head = [t(lang, k) for k in ("features" if group else "requirement", "test", "run_by", "pass_criteria", "result",
+                                 "evidence")]
     lines += ["", "| " + " | ".join(head) + " |", "|---|---|---|---|---|---|"]
     for r in summ["rows"]:
         x = r["test"]
@@ -132,7 +249,7 @@ def results_block(feature: Feature) -> str:
         elif r["status"] == "passed" and run.get("status") == "manual_passed":
             result += " " + t(lang, "by_human", who=str(run.get("recorded_by", "")).replace("human:", ""))
         lines.append(
-            f"| {', '.join(x.get('requirement_ids', [])) or '-'} | {x['id']} {_cell(x.get('title', ''))} | {who} | "
+            f"| {', '.join(x.get('children' if group else 'requirement_ids') or []) or '-'} | {x['id']} {_cell(x.get('title', ''))} | {who} | "
             f"{criteria} | {result} | {ev} |"
         )
     return "\n".join(lines)
@@ -162,7 +279,10 @@ def steps_block(feature: Feature) -> str:
 def decisions_block(feature: Feature) -> str:
     lang = lang_of(feature.ws)
     req = feature.requirements()
-    decisions = req.get("decisions", [])
+    return _decision_tables(lang, req.get("decisions", []), req.get("assumptions", [])) or t(lang, "no_decisions")
+
+
+def _decision_tables(lang: str, decisions: List[Dict[str, Any]], assumptions: List[Dict[str, Any]]) -> str:
     out: List[str] = []
     changed = [d for d in decisions if str(d.get("overrides_user_answer") or "").strip()]
     if changed:
@@ -177,18 +297,18 @@ def decisions_block(feature: Feature) -> str:
         out += [f"| {d.get('id')} | {_cell(d.get('question'))} | {_cell(d.get('answer'))} | "
                 f"{value(lang, 'decided_by', d.get('decided_by'))} |" for d in decisions]
         out.append("")
-    assumptions = req.get("assumptions", [])
     if assumptions:
         out += [f"**{t(lang, 'assumed_for_you')}**", "", f"| ID | {t(lang, 'assumption')} | {t(lang, 'risk')} |", "|---|---|---|"]
         out += [f"| {a.get('id')} | {_cell(a.get('text'))} | {value(lang, 'risk', a.get('risk', '-'))} |" for a in assumptions]
-    return "\n".join(out).rstrip() or t(lang, "no_decisions")
+    return "\n".join(out).rstrip()
 
 
 def render(feature: Feature) -> List[str]:
     updated = []
     blocks = {
         "overview.md": {"status": status_block, "tasks": tasks_block, "results": results_block,
-                        "decisions": decisions_block},
+                        "decisions": decisions_block, "features": features_block, "shared": shared_block,
+                        "excluded": excluded_block, "steps": steps_block},
         "verification.md": {"results": results_block, "status": status_block, "steps": steps_block},
         "design.md": {"tasks": tasks_block},
     }
@@ -214,8 +334,10 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
     errors: List[str] = []
     warnings: List[str] = []
     mode = st.get("mode")
-    lenient = mode in ("L0", "L1")
-    expected = ["overview.md"] if lenient else list(STRUCTURE)
+    group = st.get("kind") == "group"
+    structure = GROUP_STRUCTURE if group else STRUCTURE
+    lenient = mode in ("L0", "L1") and not group
+    expected = ["overview.md"] if lenient else list(structure)
     for fname in expected:
         path = feature.dir / fname
         if not path.exists():
@@ -228,7 +350,7 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
             if len([l for l in lines if l.strip()]) > limit:
                 warnings.append(f"{fname}: {mode} summary exceeds {limit} lines - move detail to details/")
         else:
-            spec = STRUCTURE[fname]
+            spec = structure[fname]
             for b in spec["blocks"]:
                 if f"<!-- hr:{b}:start -->" not in text:
                     errors.append(f"{fname}: missing generated block <!-- hr:{b}:start/end --> (keep it from the template)")
@@ -254,13 +376,13 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
                 errors.append(f"{fname}: Mermaid block does not start with a diagram type: {first[:40]!r}")
             if body.count("[") != body.count("]") or body.count("{") != body.count("}") or body.count("(") != body.count(")"):
                 errors.append(f"{fname}: unbalanced brackets in Mermaid block")
-        if fname == "design.md" and not lenient and _needs_design_diagram(feature, st) and not MERMAID_RE.search(text):
+        if fname == "design.md" and not lenient and not group and _needs_design_diagram(feature, st) and not MERMAID_RE.search(text):
             errors.append("design.md: this change crosses module or process boundaries (or a task changes a flow) but "
                           "there is no Mermaid diagram - add a sequence, state, or component diagram of what changes")
         raw_log_lines = sum(1 for l in lines if re.match(r"^\s*(\[?\d{4}-\d{2}-\d{2}[T ][\d:]+|Traceback|\s+at .+\(.+:\d+\))", l))
         if raw_log_lines > 10:
             warnings.append(f"{fname}: {raw_log_lines} lines look like raw logs - move them to details/ and link")
-    if not lenient:
+    if not lenient and not group:
         for task in feature.task_graph().get("tasks", []):
             if task.get("changes_flow") is not True:
                 continue
@@ -271,6 +393,12 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
             elif not MERMAID_RE.search(path.read_text(encoding="utf-8")):
                 errors.append(f"{rel}: {task['id']} is marked changes_flow but its document has no Mermaid diagram "
                               "of the interaction it changes")
+    from runtime import prose
+
+    hits = prose.check(feature, prose.doc_names(feature))
+    if hits:
+        target = errors if prose.settings(feature.ws)["mode"] == "error" else warnings
+        target += [f"{h} - {prose.ADVICE}" for h in hits[:1]] + hits[1:]
     return {"errors": errors, "warnings": warnings}
 
 

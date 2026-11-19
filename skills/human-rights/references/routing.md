@@ -69,12 +69,26 @@ Write the axes to a file (or pipe them on stdin with `--axes -`):
 .human-rights/hr classify --flags vehicle_command --axes @.human-rights/features/FEAT-001-multi-drone/details/axes.json
 ```
 
+## Size: one feature or several
+
+For L2 and L3, the classification also records whether the request is one feature:
+
+```bash
+.human-rights/hr classify --axes @axes.json --size single --size-reason "one endpoint and its screen"
+.human-rights/hr classify --axes @axes.json --size compound --size-reason "sign-up, log-in and reset ship separately"
+```
+
+`compound` means two or more results that can each be verified and shipped on their own. The runtime
+refuses to leave `triaging` or `clarifying` at L2/L3 without a size, and refuses to plan a compound
+request as one feature. L0 and L1 skip the decision. Criteria and the group workflow:
+[splitting](splitting.md).
+
 ## Reclassification
 
 Run `hr classify` again (with all axes) as soon as you find: a wider scope after exploring, a public
 contract change, an unexpected dependency, or a major verification failure.
 
-**Always reclassify when clarifying ends.** The user's answers usually lower `ambiguity` (a decided policy is
+**Always reclassify when clarifying ends, and decide the size again.** The user's answers usually lower `ambiguity` (a decided policy is
 no longer ambiguous: score it by what is *still* open), and they can also change `scope`, `risk`, or
 `verification` (for example "only the monitor tab" narrows scope). Update each axis's `basis` to cite the
 answers. The runtime refuses to leave `clarifying` until a classification newer than entering it exists.

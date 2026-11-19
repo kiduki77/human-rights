@@ -17,24 +17,30 @@ on auto-merge, widens parallelism, or turns red pill mode off. To change policy,
 | `verification.max_parallel_tests` | `4` | Max tests at once. Only `parallel_safe: true` tests run concurrently, never two that share a `resources` entry; `exclusive: true` tests always run alone |
 | `scheduler.max_parallel_tasks` | `3` | Max tasks implemented at once in separate worktrees (`1` = sequential) |
 | `scheduler.worktree_root` | `""` | Where task worktrees live. Empty: a sibling `<repo>.hr-worktrees/` directory, so test runners and linters in the main checkout never pick up the copies |
+| `groups.max_active_children` | `1` | How many features of one group may be in progress at once. The human's review is the bottleneck, so the default is one |
 | `redpill.enabled` | `false` | Red pill mode: occasionally plant a plausible but unacceptable item in the approval tables and refuse rubber-stamp approvals (see [approvals](approvals.md#red-pill-mode-review-vigilance-drills)) |
 | `redpill.one_in` | `10` | Drill frequency: about 1 in N approval requests |
 | `redpill.gates` | `[design, final]` | Which approval gates can be drilled |
+| `redpill.difficulty` | `adaptive` | `easy`, `normal`, `hard`, or `adaptive` (starts easy; up after 2 clean catches in a row, down after 2 misses in a row) |
+| `redpill.author` | `agent` | `agent`: `hr-redpill-author` writes candidates for each plan, and an approval request waits for them. `builtin`: the runtime's own lists and row alterations, for hosts without sub-agents |
 | `redpill.language` | `""` | Language of the scolding (`en`, `ko`); empty follows `docs.language` |
 | `docs.language` | `en` | Language of everything humans read under `.human-rights/`: templates (`templates/<lang>/`), rendered tables, red pill plants. `en` or `ko`. The structural checks are language-agnostic |
 | `docs.l0_summary_max_lines` | `15` | Length budget for an L0 `overview.md` |
 | `docs.overview_max_lines` | `120` | Length budget for an L2/L3 `overview.md` |
+| `docs.prose_check` | `error` | Filler-wording scan in `hr doc-check` (see [writing](writing.md)). `error`: a hit fails the check and blocks approval requests. `warn`: reported only. `off`: no scan |
+| `docs.banned_phrases` | `[]` | Extra words or phrases this team does not want in its documents |
+| `docs.allowed_phrases` | `[]` | Hits to accept because they are real terms here (a product name, a field label) |
 
 | `agents.preset` | `balanced` | Which preset the values below came from (`hr init --agents <preset>`): `balanced`, `quality`, `economy`, `inherit` |
-| `agents.<role>_model` | see below | `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or `inherit` (the session's model). Roles: `investigator`, `plan_reviewer`, `task_worker`, `tester` |
+| `agents.<role>_model` | see below | `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or `inherit` (the session's model). Roles: `investigator`, `plan_reviewer`, `task_worker`, `tester`, `redpill_author` |
 | `agents.<role>_effort` | see below | `low`, `medium`, `high`, `xhigh`, `max`, or empty for the model's default |
 
-| Preset | `hr-investigator` | `hr-plan-reviewer` | `hr-task-worker` | `hr-tester` |
-|---|---|---|---|---|
-| `balanced` (default) | sonnet / medium | opus / high | sonnet / high | sonnet / high |
-| `quality` | opus / medium | opus / high | opus / high | opus / high |
-| `economy` | haiku / default | sonnet / high | sonnet / medium | sonnet / medium |
-| `inherit` | session model | session model | session model | session model |
+| Preset | `hr-investigator` | `hr-plan-reviewer` | `hr-task-worker` | `hr-tester` | `hr-redpill-author` |
+|---|---|---|---|---|---|
+| `balanced` (default) | sonnet / medium | opus / high | sonnet / high | sonnet / high | sonnet / high |
+| `quality` | opus / medium | opus / high | opus / high | opus / high | opus / high |
+| `economy` | haiku / default | sonnet / high | sonnet / medium | sonnet / medium | sonnet / medium |
+| `inherit` | session model | session model | session model | session model | session model |
 
 The main conversation (the planner and coordinator) always runs on the session's own model; pick it with
 `/model`. `hr agents` shows what each sub-agent will run with.

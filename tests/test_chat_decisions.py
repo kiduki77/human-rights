@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from helpers import ONE
 from helpers import L3_AXES, PLUGIN, Repo, git, install_example_plan
 from runtime import human, redpill
 from runtime.state.store import Workspace
@@ -13,7 +14,7 @@ class ChatBase(unittest.TestCase):
         r = self.r
         r.hr("init")
         r.hr("new", "Multi-vehicle control", "--slug", "multi-drone")
-        r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
         install_example_plan(r)
         r.hr("transition", "planning")
 
@@ -97,7 +98,7 @@ class ChatDrillTest(ChatBase):
     def test_pointing_at_the_plant_in_chat_catches_it_and_approves(self):
         r = self.r
         r.say("/hrs:redpill on 1")
-        self.assertEqual(r.hr("redpill", "on", "--one-in", "1", "--quote", "/hrs:redpill on 1")[0], 0)
+        self.assertEqual(r.hr("redpill", "on", "--one-in", "1", "--author", "builtin", "--quote", "/hrs:redpill on 1")[0], 0)
         r.hr("transition", "awaiting_design_approval")
         plant = self.drill()["active"]["id"]
 
@@ -113,12 +114,12 @@ class ChatDrillTest(ChatBase):
         self.assertIn("Good catch", out)
         self.assertEqual(r.state()["state"], "executing")
         st = redpill.stats(self.ws().resolve(None))
-        self.assertEqual((st["caught"], st["rubber_stamps"]), (1, 1))
+        self.assertEqual((st["caught"], st["caught_after_refusal"], st["rubber_stamps"]), (0, 1, 1))
         self.assertEqual(self.last_event("redpill_caught")["quote"], msg)
 
     def test_plant_and_real_concern_together_catch_but_do_not_approve(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "awaiting_design_approval")
         plant = self.drill()["active"]["id"]
         msg = f"{plant} 말이 안 되고 TASK-002 범위도 줄여야 할 듯"
@@ -131,7 +132,7 @@ class ChatDrillTest(ChatBase):
 
     def test_reveal_and_toggle_from_chat(self):
         r = self.r
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "awaiting_design_approval")
         plant = self.drill()["active"]["id"]
         r.say("모르겠다 정답 보여줘")
@@ -179,7 +180,7 @@ class ReclassifyAfterClarifyingTest(unittest.TestCase):
             axes["architecture"]["score"] = 1
             r.hr("init")
             r.hr("new", "Live map interval", "--slug", "interval")
-            r.hr("classify", "--axes", json.dumps(axes))
+            r.hr("classify", "--axes", json.dumps(axes), *ONE)
             self.assertEqual(r.state()["mode"], "L3")
             r.hr("transition", "clarifying")
             code, out = r.hr("transition", "investigating")
@@ -187,7 +188,7 @@ class ReclassifyAfterClarifyingTest(unittest.TestCase):
             self.assertIn("reclassify after clarifying", out)
             axes["ambiguity"] = {"score": 0, "basis": "user answered all four policies", "confirmed": True,
                                  "confidence": "high"}
-            code, out = r.hr("classify", "--axes", json.dumps(axes))
+            code, out = r.hr("classify", "--axes", json.dumps(axes), *ONE)
             self.assertIn("L3 -> L2", out)
             self.assertEqual(r.hr("transition", "investigating")[0], 0)
         finally:

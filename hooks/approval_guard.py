@@ -8,9 +8,10 @@ HUMAN_ONLY = re.compile(
 )
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:features[/\\]+[^/\\]+[/\\]+\.internal[/\\]+"
-    r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill\.json|logs[/\\])"
+    r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
     r"|\.local[/\\]+prompts\.jsonl)"
 )
+SECRET = re.compile(r"redpill(?:-pool)?\.json")
 QUOTE = re.compile(r"\s--quote(?:\s|=)")
 WRITE_HINT = re.compile(
     r"(>|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bcp\b|\bmv\b|\brm\b|\bdd\b|Set-Content|Add-Content|Out-File|"
@@ -48,6 +49,11 @@ def main() -> None:
                 "The runtime checks the quote against the message the human actually sent. "
                 "Without one, ask the human to decide in chat."
             )
+        if SECRET.search(cmd):
+            deny(
+                "human-rights: red pill files are read and written only by the hr runtime. Reading them would "
+                "spoil a drill. Use `hr redpill status`."
+            )
         if PROTECTED.search(cmd) and WRITE_HINT.search(cmd):
             deny(
                 "human-rights: state.json / test-results.json / failures.json / events.jsonl / logs are written only by "
@@ -55,6 +61,11 @@ def main() -> None:
             )
         sys.exit(0)
 
+    if tool in ("Read", "Grep") and SECRET.search(str(inp.get("file_path") or inp.get("path") or "")):
+        deny(
+            "human-rights: red pill files are read only by the hr runtime. Reading them would spoil a drill. "
+            "Use `hr redpill status`."
+        )
     if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
         path = inp.get("file_path") or inp.get("notebook_path") or ""
         if PROTECTED.search(path.replace("\\", "/")):

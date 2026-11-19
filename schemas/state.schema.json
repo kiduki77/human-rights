@@ -26,6 +26,10 @@
     "state": {
       "enum": [
         "created",
+        "proposed",
+        "splitting",
+        "awaiting_split_approval",
+        "delivering",
         "triaging",
         "clarifying",
         "investigating",
@@ -201,6 +205,12 @@
             "object",
             "null"
           ]
+        },
+        "split": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "additionalProperties": true,
@@ -272,6 +282,63 @@
             "type": "object"
           }
         }
+      }
+    },
+    "kind": {
+      "enum": [
+        "feature",
+        "group"
+      ]
+    },
+    "parent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "group_key": {
+      "type": "string"
+    },
+    "size": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "decision": {
+          "enum": [
+            "single",
+            "compound"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "reason"
+      ]
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "feature_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "feature_id"
+        ]
       }
     }
   },

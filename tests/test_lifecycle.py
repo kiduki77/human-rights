@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from helpers import ONE
 from helpers import L0_AXES, L3_AXES, Repo, install_example_plan
 
 TASKS = ("TASK-001", "TASK-002", "TASK-003", "TASK-004")
@@ -47,7 +48,7 @@ class L3Test(unittest.TestCase):
         self.r = Repo()
         self.r.hr("init")
         self.r.hr("new", "Multi-vehicle control", "--slug", "multi-drone")
-        code, out = self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        code, out = self.r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
         assert "mode: L3" in out, out
 
     def tearDown(self):
@@ -56,7 +57,7 @@ class L3Test(unittest.TestCase):
     def _to_design_approval(self, fail_tests=()):
         install_example_plan(self.r, fail_tests)
         self.assertEqual(self.r.hr("transition", "clarifying")[0], 0)
-        self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command", "--note", "after clarifying")
+        self.r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command", "--note", "after clarifying")
         self.assertEqual(self.r.hr("transition", "planning")[0], 0)
         code, out = self.r.hr("transition", "awaiting_design_approval")
         self.assertEqual(code, 0, out)
@@ -208,7 +209,7 @@ class NoGitTest(unittest.TestCase):
         try:
             r.hr("init")
             r.hr("new", "Multi-vehicle control")
-            r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+            r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
             install_example_plan(r)
             r.hr("transition", "planning")
             r.hr("transition", "awaiting_design_approval")

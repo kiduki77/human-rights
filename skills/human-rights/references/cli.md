@@ -10,11 +10,14 @@ runtime checks the quote against the human's latest captured message (see
 
 | Command | Who | What it does |
 |---|---|---|
-| `init [--language en|ko]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; `--language` sets `docs.language` |
+| `init [--language en\|ko] [--agents preset] [--redpill on\|off --redpill-difficulty D --redpill-one-in N]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; sets the report language, sub-agent models and drill settings the human chose |
 | `new "<title>" --slug s --request "<text>"` | agent | create a feature (`triaging`), make it active |
-| `classify --axes <json\|@file\|-> [--flags a,b]` | agent | route / reclassify, set required gates |
+| `classify --axes <json\|@file\|-> [--flags a,b] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3) |
+| `size single\|compound --reason "..."` | agent | record the size decision without scoring axes |
+| `split-check [--json]` | agent | split quality hard gate for a group: features, order, shared decisions, exclusions, group checks |
+| `start [-f group\|feature] [--json]` | agent | start the next waiting feature of a group (dependencies done, one at a time) and print its brief |
 | `status [--json]` | anyone | state, approvals, tasks, tests, next human decision |
-| `list` | anyone | all features |
+| `list` | anyone | all features, as a tree of groups and their features |
 | `resume` | agent | reconcile stored state with git/GitHub, make the feature active |
 | `transition <state> [--reason]` | agent | guarded state change |
 | `plan-check [--json]` | agent | plan quality hard gate |
@@ -25,23 +28,25 @@ runtime checks the quote against the human's latest captured message (see
 | `schedule [--start] [--max N] [--json]` | agent | next conflict-free batch from the DAG, with reasons for deferred/waiting tasks. `--start` creates the worktrees and prints sub-agent briefs |
 | `worktree create\|merge\|remove\|list\|brief [TASK] [--remove] [--force]` | agent | task worktrees; `merge` enforces verified-and-unchanged, dependency order, clean trees; aborts cleanly on conflict |
 | `flag <ID>... --quote "<words>"` | **human decision** | point at approval items the human would not approve (catches a red pill plant, otherwise a review concern) |
-| `redpill on [--one-in N] [--gates ...] [--language en\|ko]` / `redpill off` / `redpill reveal` (each `--quote "<words>"`) | **human decision** | Red pill mode toggle, frequency, give up on a drill |
-| `redpill status` | anyone | Red pill settings and drill results (never whether a drill is active) |
+| `redpill on [--one-in N] [--difficulty easy\|normal\|hard\|adaptive] [--gates ...] [--author agent\|builtin] [--language en\|ko]` / `redpill off` / `redpill reveal` (each `--quote "<words>"`) | **human decision** | Red pill mode toggle, difficulty, frequency, give up on a drill |
+| `redpill status` | anyone | Red pill settings, adaptive level, catch rate per difficulty, most-missed kinds (never whether a drill is active) |
+| `redpill brief --gate design\|final [--json]` | agent | prompt and model for `hr-redpill-author` |
+| `redpill seed --gate design\|final --from <file\|->` | `hr-redpill-author` only | submit drill candidates for the current plan; the coordinating conversation never runs or reads this |
 | `metrics [--all] [--json]` | anyone | lead time, approval wait, rework, failures, coverage, test time, tokens, parallel speedup |
 | `metrics record --kind <kind> --value N [--note] [--by]` | agent / human | host-reported values: `tokens`, `agent_seconds`, `review_minutes`, `escaped_defect`, `intent_mismatch`, `unnecessary_question`, `question_asked` |
 | `templates install\|update\|status [--from DIR] [--force]` | human / agent | install the plugin's (or an org's) template pack into `.human-rights/templates/`; customized files are kept unless `--force` |
-| `scaffold [overview requirements design verification codebase research tasks l0-summary review-report] [--overwrite]` | agent | create feature docs from templates (repo first); `tasks` pre-fills from `task-graph.json` |
+| `scaffold [overview requirements design verification codebase research tasks l0-summary review-report group] [--overwrite]` | agent | create feature docs from templates (repo first); `tasks` pre-fills from `task-graph.json`; a group gets `group` by default |
 | `test-brief <TEST-ID> [--json]` | agent | work order for `hr-tester`: the approved steps and pass criteria, the evidence directory, the report shape, and the model to spawn with |
 | `record-agent <TEST-ID> [--report path]` | agent | record an agent test from the tester's `report.json`; refuses a missing step result or a passed step without an evidence file |
 | `record-manual <TEST-ID> passed\|failed --quote "<words>" [--evidence url]` | **human decision** | record a human test result; a pass is refused until every script and agent test passes |
 | `agents [--json]` | anyone | model and effort each sub-agent runs with |
 | `failures [--classify FAIL-ID --cause-type ... --cause ... --fix-task ... --retest ...]` | agent | list / classify failures |
-| `approve design\|final --quote "<words>" [--flag ID...] [--risks ...]` | **human decision** | approval bound to plan hashes / code tree; `--flag` records the items the human pointed at and refuses approval while a real one is among them |
-| `reject design\|final --reason ... [--to state] [--quote "<words>"]` | agent (records the human's request) | change request |
+| `approve design\|final\|split --quote "<words>" [--flag ID...] [--risks ...]` | **human decision** | approval bound to plan hashes / code tree; `--flag` records the items the human pointed at and refuses approval while a real one is among them. `split` approves a group's feature list and creates the features |
+| `reject design\|final\|split --reason ... [--to state] [--quote "<words>"]` | agent (records the human's request) | change request |
 | `unblock --quote "<words>" --note ...` | **human decision** | release an escalation |
 | `scope-change --task T --reason ...` | agent | change outside the task boundary found -> `clarifying` |
 | `render` | agent | refresh the `hr:*` blocks from evidence |
-| `doc-check` | agent | document quality gate |
+| `doc-check` | agent | document quality gate: structure, links, diagrams, and filler wording in documents and plan text |
 | `check` | anyone | integrity: event chain, schemas, approvals, plan, docs |
 | `log [-n 20]` | anyone | recent events |
 | `gh status\|create-issues\|link\|sync` | agent | GitHub adapter |
@@ -51,3 +56,6 @@ runtime checks the quote against the human's latest captured message (see
 States: `created → triaging → clarifying? → investigating? → planning? → awaiting_design_approval? →
 executing → verifying_tasks → integrating → awaiting_final_approval? → ready_to_merge → completed`,
 plus `blocked`, `rework_required`, `cancelled`, `failed`.
+
+Group states: `triaging → splitting → awaiting_split_approval → delivering → integrating → completed`. A
+feature created by a split waits in `proposed` until `hr start` moves it to `triaging`.

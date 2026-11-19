@@ -48,6 +48,34 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
 - **Diagrams are required where a change crosses a boundary (v0.4).** The earlier rule ("only when
   genuinely complex") produced none. Tasks declare `changes_flow`, and `hr doc-check` enforces a diagram
   for the design and for each such task, and nowhere else.
+- **The size of a request is judged before its grade (v0.5).** A compound request used to become one L3
+  feature with one approval covering everything, which no human can review. Now a request with several
+  separately verifiable results becomes a group, and the human approves the list of features first. The
+  judgment lives in the normal start of work, not in a separate command, because a one-line request and a
+  120-page document need the same question asked.
+- **Depth comes from repeating the rule, not from fixed levels (v0.5).** A feature created by a split is
+  judged for size again when it starts, so a group nests only where the work is actually compound. A part
+  that cannot be verified alone stays a task.
+- **A group needs a check that crosses its features (v0.5).** Features that pass on their own can fail
+  when joined. Without a required cross-feature check the split is rejected.
+- **A source document is traced both ways (v0.5).** Features cite pages, non-requirements are listed as
+  excluded, unread parts are listed for the human, and what the code already does is not planned again.
+  Otherwise the reader cannot tell what was dropped.
+- **Filler wording is a gate, not a style note (v0.5).** A word list cannot define good writing, and it
+  covers only English and Korean. It is still enforced as an error because advice alone was ignored, and
+  the rule and the reviewer carry the part a list cannot. Teams can extend, relax, or turn it off.
+- **Red pill plants are written per feature, by an agent the coordinator cannot see (v0.5).** A fixed list
+  of flawed rows becomes recognisable after a few drills, and then the human is matching phrases, not
+  reviewing. A separate agent reads the feature and writes candidates that are wrong for that feature. It
+  submits them to the runtime directly, they are stored unreadable at a glance, and a hook denies reading
+  them, so the conversation that asks for approval cannot give a drill away. Candidates are required
+  before every approval request while the mode is on, so asking for them reveals nothing.
+- **The hardest drills change a real row (v0.5).** An added row is found by counting. A real row whose
+  criterion, number, or dependency was changed is found only by comparing it with the requirements and
+  decisions, which is the review skill the mode exists to train.
+- **Every drill ends with the reason (v0.5).** Catching or giving up shows why the item was unacceptable
+  and what the real value is. Difficulty adapts to the human's record. The aim is a better reviewer, not a
+  score.
 - **Stdlib-only runtime, Python 3.8+.** There is nothing to install for gates to work; `jsonschema` is an
   optional extra.
 

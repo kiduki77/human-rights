@@ -40,6 +40,20 @@ Rules:
 - A human can still run any of these themselves with `! .human-rights/hr ... --by <name>`. Hosts without a
   prompt hook need that path. See [host-adapters](host-adapters.md).
 
+## Requesting split approval (`awaiting_split_approval`)
+
+A group asks the human to approve its list of features before any of them starts. Show the rendered group
+`overview.md` and say what the human can answer: approve, or name what to drop, merge, add or reorder.
+Point out the two things most worth checking, in words: usually an exclusion and a shared decision.
+
+- Approval: `hr approve split --quote "<their words>"`. The runtime creates the features and moves the
+  group to `delivering`.
+- A change to the list: `hr reject split --reason "..." --quote "<their words>"`, edit `split.json`, ask again.
+- The approval is bound to `split.json` and the group's `test-plan.json`. Editing either later invalidates
+  it and returns the group to `splitting`.
+
+Red pill drills do not run on this gate. Rules for the split itself: [splitting](splitting.md).
+
 ## Requesting design approval (`awaiting_design_approval`)
 
 1. Pass `hr plan-check`, apply the independent review, run `hr render`, and pass `hr doc-check`.
@@ -112,41 +126,77 @@ get re-approval.
 
 ## Red pill mode: review-vigilance drills
 
-When `redpill.enabled` is on, the runtime rolls a die each time a feature enters `awaiting_design_approval` or
-`awaiting_final_approval` (about 1 in `redpill.one_in`, for the gates in `redpill.gates`). On a hit, it plants one
-plausible but unacceptable item in the rendered approval tables:
+The human approves well only if they read well. With `redpill.enabled`, the runtime draws at random each
+time a feature enters `awaiting_design_approval` or `awaiting_final_approval` (about 1 in `redpill.one_in`,
+for the gates in `redpill.gates`). On a hit it plants one item that must not be approved in the rendered
+approval tables. The goal is practice: the human gets better at spotting flaws, and each drill ends with
+an explanation of what was wrong.
 
-- design gate: a verification row whose method proves nothing (exit code ignored, the component under
-  test is mocked, "looks fine locally", grepping a log), or a plan row that should never be approved
-  (disable validation, swallow errors, skip a slow test, copy instead of change);
-- final gate: a result row with a pass that isn't evidence (verified manually by the agent with no log,
-  skipped as flaky, ran on the previous commit, assumed unchanged).
+### What gets planted
+
+| Difficulty | The plant | Found by |
+|---|---|---|
+| `easy` | an added row that says outright that a check proves nothing or a safeguard is removed | reading the row |
+| `normal` | an added or altered row that sounds routine but does not prove what it claims | thinking the row through |
+| `hard` | a real row with one cell changed: a pass criterion, a number, a step's expected result, a dependency, a result | comparing it with the requirements, decisions, or design |
+
+`redpill.difficulty: adaptive` (the default) starts at easy, moves up after 2 clean catches in a row and down
+after 2 misses in a row, counted across all features. A clean catch is one made before any approval was
+refused. A catch after a refusal is recorded separately and does not move the level.
 
 The plant exists only in the rendered `overview.md` / `verification.md` tables. It is never in the plan
-JSON or `design.md`, so it can't be executed, and it never affects approval hashes.
+JSON or `design.md`, so it can't be executed, and it never affects approval hashes. When the drill ends,
+`hr render` restores the real table.
+
+### Candidates are written for the feature
+
+With `redpill.author: agent` (the default), the plant is not taken from a fixed list. Before each
+approval request, while red pill mode is on:
+
+1. `hr redpill brief --gate design|final --json` prints a prompt and the model to use.
+2. Spawn `hr-redpill-author` with that prompt. It reads the feature, writes candidates that are wrong for
+   this feature specifically (a decision contradicted, a boundary shifted, a test that passes while the
+   requirement is broken), at all three difficulties, avoiding the kinds of flaw used in recent drills, and
+   submits them with `hr redpill seed`.
+3. It replies with a count. **Don't read its transcript, its temporary file, or the pool file**, and don't
+   ask it what it wrote. A hook denies reading the drill files.
+
+The runtime refuses the approval transition until candidates exist for the current plan. Do this every
+time, whether or not a drill will fire: you don't know, and you must not find out. A plan change discards
+the candidates. Without sub-agents, the human can set `redpill.author: builtin`, which uses the runtime's
+own lists and row alterations.
+
+### During a drill
 
 If the human approves without spotting it, `hr approve` refuses with a scolding and tells them to review
 again. They answer in chat:
 
 - They point at the plant (by ID or description): `hr approve <gate> --quote ... --flag <ID>` catches it,
-  removes the row, and records the approval in the same step. Spotting it is the review.
+  restores the table, and records the approval in the same step. Spotting it is the review. `hr` prints why
+  it was wrong and, for an altered row, the real value. Relay that explanation as is.
 - They point at a real item: it becomes a review concern and the approval is refused until you address it.
   The drill stays armed.
-- They give up ("정답 보여줘"): `hr redpill reveal --quote ...` shows the plant and records it as missed.
+- They give up ("정답 보여줘"): `hr redpill reveal --quote ...` shows the plant and the explanation, and
+  records it as missed.
 
-Your job during a drill:
+Your job:
 
-- Behave exactly as without one. Never read `.internal/redpill.json`, never hint, never remove or explain the
-  odd row, and never "fix" it.
+- Behave exactly as without a drill. Never hint, never remove or explain an odd row, and never "fix" it.
+- A row may look wrong to you. Say nothing about it unless the human does. If the human asks you whether a
+  row is correct, answer from the plan files, as you would for any row.
 - If the human mentions an item in chat ("TEST-014 is nonsense"), record it with `--flag` as in
   [Chat decisions](#chat-decisions). Flag what they pointed at, nothing more.
 - `hr status` lists `human review flags`. Treat each one as a real review comment: investigate it, and
   change the plan (with re-approval) or explain why it's fine.
-- A change request (`hr reject`) ends the drill. The next submission rolls again.
-- `hr metrics` reports drills, catches, misses, and refused rubber-stamp approvals per feature.
+- A change request (`hr reject`) ends the drill. The next submission draws again.
 
-Turning it on and off, and the frequency, are the human's decision. They say it in chat or type
-`/hrs:redpill on 10`, `/hrs:redpill off`. You run
-`hr redpill on --one-in 10 [--gates design,final] [--language en|ko] --quote "<words>"` or
-`hr redpill off --quote "<words>"`.
-`hr redpill status` shows the settings and results, never whether a drill is active.
+### Settings and results
+
+Turning it on and off, the difficulty, and the frequency are the human's decision. They choose them during
+`/hrs:init`, say it in chat, or type `/hrs:redpill on 5 hard`, `/hrs:redpill off`. You run
+`hr redpill on [--one-in N] [--difficulty easy|normal|hard|adaptive] [--gates design,final] --quote "<words>"`
+or `hr redpill off --quote "<words>"`.
+
+`hr redpill status` shows the settings, the current adaptive level, the catch rate per difficulty, and the
+kinds of flaw missed most often. It never shows whether a drill is active. `hr metrics` reports drills,
+catches, misses, and refused rubber-stamp approvals per feature.

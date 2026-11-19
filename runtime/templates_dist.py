@@ -19,6 +19,7 @@ DOCS = {
     "verification": ("verification.md", "verification.md"),
     "l0-summary": ("l0-summary.md", "overview.md"),
     "review-report": ("review-report.md", "review-report.md"),
+    "group": ("group.md", "overview.md"),
     "codebase": ("details-codebase.md", "details/codebase.md"),
     "research": ("details-research.md", "details/research.md"),
 }
@@ -175,6 +176,8 @@ def scaffold(feature: Feature, names: List[str], overwrite: bool = False) -> Dic
     st = feature.state()
     title = st.get("title", "")
     out: Dict[str, List[str]] = {"created": [], "skipped_existing": []}
+    if not names and st.get("kind") == "group":
+        names = ["group"]
     if not names:
         names = ["l0-summary"] if st.get("mode") in ("L0", "L1") else ["overview", "requirements", "design", "verification", "codebase", "tasks"]
     for name in names:

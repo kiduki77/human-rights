@@ -6,22 +6,27 @@ from runtime.common import GateError, HRError, fingerprint, now
 from runtime.state.store import Feature
 
 STATES = (
-    "created", "triaging", "clarifying", "investigating", "planning", "awaiting_design_approval",
+    "created", "proposed", "splitting", "awaiting_split_approval", "delivering", "triaging", "clarifying", "investigating", "planning", "awaiting_design_approval",
     "executing", "verifying_tasks", "integrating", "awaiting_final_approval", "ready_to_merge",
     "completed", "blocked", "rework_required", "cancelled", "failed",
 )
 TERMINAL = ("completed", "cancelled", "failed")
 
 TRANSITIONS: Dict[str, tuple] = {
-    "created": ("triaging",),
-    "triaging": ("clarifying", "investigating", "planning", "executing"),
-    "clarifying": ("investigating", "planning", "executing"),
-    "investigating": ("clarifying", "planning", "executing"),
-    "planning": ("clarifying", "investigating", "awaiting_design_approval", "executing"),
+    "created": ("triaging", "proposed"),
+    "proposed": ("triaging",),
+    "triaging": ("clarifying", "investigating", "planning", "executing", "splitting"),
+    "clarifying": ("investigating", "planning", "executing", "splitting"),
+    "investigating": ("clarifying", "planning", "executing", "splitting"),
+    "planning": ("clarifying", "investigating", "awaiting_design_approval", "executing", "splitting"),
+    "splitting": ("awaiting_split_approval", "clarifying", "investigating"),
+    "awaiting_split_approval": ("delivering", "splitting"),
+    "delivering": ("integrating", "splitting"),
     "awaiting_design_approval": ("clarifying", "planning", "executing"),
     "executing": ("verifying_tasks", "rework_required", "clarifying"),
     "verifying_tasks": ("executing", "integrating", "rework_required", "completed"),
-    "integrating": ("awaiting_final_approval", "ready_to_merge", "rework_required", "clarifying", "executing"),
+    "integrating": ("awaiting_final_approval", "ready_to_merge", "rework_required", "clarifying", "executing",
+                    "completed", "delivering", "splitting"),
     "awaiting_final_approval": ("ready_to_merge", "rework_required"),
     "ready_to_merge": ("completed", "rework_required"),
     "rework_required": ("executing", "clarifying", "planning", "investigating"),
@@ -31,7 +36,9 @@ ALWAYS_ALLOWED = ("blocked", "cancelled", "failed")
 LENIENT_MODES = ("L0", "L1")
 
 STATE_LABELS = {
-    "created": "created", "triaging": "triaging", "clarifying": "clarifying intent",
+    "created": "created", "proposed": "waiting in its group", "splitting": "splitting into features",
+    "awaiting_split_approval": "awaiting split approval", "delivering": "delivering features",
+    "triaging": "triaging", "clarifying": "clarifying intent",
     "investigating": "investigating code", "planning": "designing & decomposing",
     "awaiting_design_approval": "awaiting design approval", "executing": "implementing",
     "verifying_tasks": "verifying tasks", "integrating": "integration testing",
@@ -68,6 +75,27 @@ def tests_gate(feature: Feature, st: Dict[str, Any], strict: bool) -> List[str]:
     ]
 
 
+APPROVAL_STATES = ("awaiting_design_approval", "awaiting_final_approval", "awaiting_split_approval")
+
+
+def _wording(feature: Feature, target: str) -> List[str]:
+    from runtime import prose
+
+    if target not in APPROVAL_STATES or prose.settings(feature.ws)["mode"] != "error":
+        return []
+    hits = prose.check(feature, prose.doc_names(feature))
+    if not hits:
+        return []
+    return [f"[wording] {len(hits)} filler phrase(s) in what the human is about to read - rewrite them, then ask "
+            "again (`hr doc-check` lists them): " + "; ".join(hits[:6])]
+
+
+def redpill_gates() -> Dict[str, str]:
+    from runtime import redpill
+
+    return redpill.GATE_FOR_STATE
+
+
 def _classified_since_entry(feature: Feature, state: str) -> bool:
     for ev in reversed(feature.events()):
         if ev.get("event") == "classified":
@@ -79,6 +107,7 @@ def _classified_since_entry(feature: Feature, state: str) -> bool:
 
 def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     from runtime.approvals.gates import design_status, final_status
+    from runtime import groups
     from runtime.verification import failures
     from runtime.verification.plan_check import check_plan
 
@@ -99,8 +128,37 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     if target not in TRANSITIONS.get(cur, ()):
         return [f"transition not allowed: {cur} -> {target} (allowed: {', '.join(TRANSITIONS.get(cur, ()) + ALWAYS_ALLOWED)})"]
 
+    problems += _wording(feature, target)
+    if target in redpill_gates():
+        from runtime import redpill
+
+        missing = redpill.seed_problem(feature, redpill_gates()[target])
+        if missing:
+            problems.append(missing)
+    if groups.is_group(st):
+        return problems + _group_guards(feature, st, cur, target)
+    if cur == "proposed":
+        return groups.start_problems(feature, st)
+    if cur == "integrating" and target in ("completed", "delivering", "splitting"):
+        return [f"{cur} -> {target} is for groups; a feature goes on to approval and merge"]
+
+    size = (st.get("size") or {}).get("decision")
+    if target == "splitting":
+        if size != "compound":
+            problems.append("record the size decision first: `hr classify --axes ... --size compound "
+                            "--size-reason <why this is more than one feature>`")
+        if st["approvals"].get("design"):
+            problems.append("this feature already has an approved design; split what is left as new work instead")
+        return problems
     if cur == "triaging" and not mode:
         problems.append("classify first (`hr classify`)")
+    if cur in ("triaging", "clarifying") and mode in groups.SIZE_MODES and not size:
+        problems.append("decide the size with the classification: is this one feature, or several results that can "
+                        "each be verified and shipped on their own? Re-run `hr classify` with `--size single|compound "
+                        "--size-reason <why>`")
+    if size == "compound" and target in ("planning", "awaiting_design_approval", "executing"):
+        problems.append("this request was judged compound: split it (`hr transition splitting`) instead of planning "
+                        "it as one feature, or re-classify with `--size single` and the reason")
     if cur == "clarifying" and not _classified_since_entry(feature, cur):
         problems.append("reclassify after clarifying: re-score the axes with the user's answers (ambiguity at "
                         "least) and run `hr classify` before moving on")
@@ -155,6 +213,39 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     return problems
 
 
+def _group_guards(feature: Feature, st: Dict[str, Any], cur: str, target: str) -> List[str]:
+    from runtime import groups
+    from runtime.verification import failures
+
+    problems: List[str] = []
+    if cur == "splitting" and target == "awaiting_split_approval":
+        problems += [f"[split] {p}" for p in groups.check_split(feature)["hard_fail"]]
+        if not (feature.dir / "overview.md").exists():
+            problems.append("overview.md is missing (`hr scaffold group`)")
+    if cur == "awaiting_split_approval" and target == "delivering":
+        if not groups.split_status(feature, st)["valid"]:
+            problems.append("no valid split approval (the human approves in chat; recorded with `hr approve split --quote`)")
+    if cur == "delivering" and target == "integrating":
+        if not groups.split_status(feature, st)["valid"]:
+            problems.append("the split changed after approval - go back to splitting and ask again")
+        rows = groups.children_of(feature, st)
+        left = groups.unfinished(feature, st)
+        if left:
+            problems.append("features not finished: " + ", ".join(left))
+        if not any(r["state"] == "completed" for r in rows):
+            problems.append("no feature of this group was completed")
+    if cur == "integrating" and target == "completed":
+        if not groups.split_status(feature, st)["valid"]:
+            problems.append("the split changed after approval - go back to splitting and ask again")
+        problems += [f"[group check] {p}" for p in tests_gate(feature, st, strict=True)]
+        crit = [f["id"] for f in failures.unresolved(feature)]
+        if crit:
+            problems.append("unresolved failures: " + ", ".join(crit))
+    if cur == "integrating" and target not in ("completed", "delivering", "splitting"):
+        problems.append(f"a group leaves integrating to completed, delivering or splitting (not {target})")
+    return problems
+
+
 def transition(feature: Feature, target: str, reason: str = "", actor: str = "agent") -> Dict[str, Any]:
     if target not in STATES:
         raise HRError(f"unknown state: {target}")
@@ -171,10 +262,19 @@ def transition(feature: Feature, target: str, reason: str = "", actor: str = "ag
         st["state_before_block"] = None
         st["block_reason"] = None
         st["block_kind"] = None
+    if target == "splitting":
+        st["kind"] = "group"
+    elif prev == "splitting" and target in ("clarifying", "investigating"):
+        st["kind"] = "feature"
+        st["size"] = None
     st["state"] = target
     feature.save_state(st)
     feature.emit("state_changed", **{"from": prev, "to": target, "reason": reason, "actor": actor})
     _redpill_hooks(feature, prev, target)
+    if target == "awaiting_split_approval":
+        from runtime import docs
+
+        docs.render(feature)
     return st
 
 
@@ -220,6 +320,8 @@ def next_human_decision(feature: Feature, st: Dict[str, Any], lang: str = "en") 
         return t(lang, "decide_design")
     if s == "awaiting_final_approval":
         return t(lang, "decide_final")
+    if s == "awaiting_split_approval":
+        return t(lang, "decide_split")
     if s == "blocked":
         if st.get("block_kind") == "escalation":
             return t(lang, "decide_escalation", reason=st.get("block_reason"))

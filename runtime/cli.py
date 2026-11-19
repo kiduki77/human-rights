@@ -10,7 +10,8 @@ from runtime.common import GateError, HRError, find_repo_root, fingerprint, now
 from runtime.state.store import Feature, Workspace, new_state
 
 HUMAN_ONLY = ("approve", "record-manual", "unblock")
-GATE_STATES = {"design": "awaiting_design_approval", "final": "awaiting_final_approval"}
+GATE_STATES = {"design": "awaiting_design_approval", "final": "awaiting_final_approval",
+               "split": "awaiting_split_approval"}
 
 
 def _print_json(obj: Any) -> None:
@@ -55,7 +56,10 @@ def cmd_init(ws: Workspace, args) -> int:
         agent_values = preset_values(args.agents) if args.agents else None
     except ValueError as exc:
         raise HRError(str(exc))
+    drill = _redpill_values(args.redpill, args.redpill_difficulty, args.redpill_one_in)
     created = ws.init()
+    if drill:
+        set_section(ws.config_path, "redpill", drill)
     if args.language:
         set_section(ws.config_path, "docs", {"language": args.language})
     if agent_values:
@@ -65,8 +69,43 @@ def cmd_init(ws: Workspace, args) -> int:
         print(f"  created: {c}")
     print(f"report language: {(ws.config().get('docs') or {}).get('language', 'en')}")
     _print_agents(ws)
+    _print_redpill(ws)
     print("Human decisions (approve / flag / record-manual / unblock / redpill) are made in chat; the agent records them with `--quote`.")
     return 0
+
+
+def _redpill_values(switch: Optional[str], difficulty: Optional[str], one_in: Optional[int],
+                    author: Optional[str] = None) -> Dict[str, Any]:
+    from runtime import redpill
+
+    values: Dict[str, Any] = {}
+    if switch:
+        if switch not in ("on", "off"):
+            raise HRError("--redpill takes on or off")
+        values["enabled"] = switch == "on"
+    if difficulty:
+        if difficulty not in redpill.DIFFICULTY_CHOICES:
+            raise HRError("difficulty takes " + ", ".join(redpill.DIFFICULTY_CHOICES))
+        values["difficulty"] = difficulty
+    if one_in is not None:
+        if one_in < 1:
+            raise HRError("--one-in must be at least 1")
+        values["one_in"] = one_in
+    if author:
+        if author not in redpill.AUTHORS:
+            raise HRError("--author takes " + " or ".join(redpill.AUTHORS))
+        values["author"] = author
+    return values
+
+
+def _print_redpill(ws: Workspace) -> None:
+    from runtime import redpill
+
+    s = redpill.settings(ws)
+    shown = s["difficulty"] if s["difficulty"] != "adaptive" else f"adaptive (now {redpill.level(ws)})"
+    print(f"Red pill mode: {'on' if s['enabled'] else 'off'}  |  about 1 in {s['one_in']} approval requests  |  "
+          f"difficulty: {shown}  |  gates: {', '.join(s['gates'])}  |  drills written by: {s['author']}  |  "
+          f"language: {s['language']}")
 
 
 def _print_agents(ws: Workspace) -> None:
@@ -118,18 +157,112 @@ def cmd_classify(ws: Workspace, args) -> int:
     flags = [x.strip() for x in (args.flags or "").split(",") if x.strip()]
     result = route(_read_json_arg(args.axes), flags, ws.config())
     notes = apply_route(st, result, now())
+    st["size"] = _size_record(args.size, args.size_reason)
     f.save_state(st)
     f.emit("classified", mode=st["mode"], flags=result["flags"], effective_scores=result["effective_scores"],
-           required_gates=st["required_gates"], note=args.note or "")
+           required_gates=st["required_gates"], note=args.note or "", size=st["size"])
     gates = ", ".join(sorted({f"{g['gate']} ({g['reason']})" for g in st["gate_reasons"]})) or "none"
     print(f"mode: {st['mode']}  |  required gates: {gates}")
     for r in result["reasons"] + notes:
         print(f"  - {r}")
+    _print_size(st)
+    return 0
+
+
+def _size_record(size: Optional[str], reason: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not size:
+        return None
+    if not (reason or "").strip():
+        raise HRError("--size needs --size-reason: what makes this one feature, or which separately verifiable "
+                      "results it contains")
+    return {"decision": size, "reason": reason.strip(), "at": now()}
+
+
+def _print_size(st: Dict[str, Any]) -> None:
+    from runtime.groups import SIZE_MODES
+
+    size = st.get("size")
+    if size:
+        print(f"size: {size['decision']} - {size['reason']}")
+        if size["decision"] == "compound":
+            print("  next: `hr transition splitting`, then write .internal/split.json (see the splitting reference)")
+    elif st.get("mode") in SIZE_MODES:
+        print(f"size: not decided - {st['mode']} needs `--size single|compound --size-reason ...` before moving on")
+
+
+def cmd_size(ws: Workspace, args) -> int:
+    f = _feature(ws, args)
+    st = f.state()
+    if st["state"] not in ("triaging", "clarifying", "investigating", "planning"):
+        raise GateError(f"the size is decided before the design is approved (current: {st['state']})")
+    st["size"] = _size_record(args.size, args.reason)
+    f.save_state(st)
+    f.emit("sized", size=st["size"])
+    _print_size(st)
+    return 0
+
+
+def cmd_split_check(ws: Workspace, args) -> int:
+    from runtime import groups
+
+    f = _feature(ws, args)
+    res = groups.check_split(f)
+    f.emit("split_checked", ok=res["ok"], hard_fail=len(res["hard_fail"]), warnings=len(res["warnings"]))
+    if args.json:
+        _print_json(res)
+    else:
+        print("split quality gate: " + ("PASS" if res["ok"] else "HARD FAIL"))
+        for h in res["hard_fail"]:
+            print(f"  x {h}")
+        for w in res["warnings"]:
+            print(f"  ! {w}")
+    return 0 if res["ok"] else 3
+
+
+def cmd_start(ws: Workspace, args) -> int:
+    from runtime import groups
+    from runtime.state import machine
+
+    f = _feature(ws, args)
+    st = f.state()
+    if groups.is_group(st):
+        _revalidate(f)
+        st = f.state()
+        row = groups.next_child(f, st)
+        if not row:
+            left = groups.unfinished(f, st)
+            if not left:
+                print(f"{f.id}: every feature is finished. Run the group checks: `hr transition integrating -f {f.id}`")
+                return 0
+            raise GateError(f"{f.id}: no feature can start now ({', '.join(left)})")
+        f = Feature(ws, row["feature_id"])
+        st = f.state()
+    if st["state"] != "proposed":
+        raise GateError(f"{f.id} is not waiting in a group (current: {st['state']})")
+    machine.transition(f, "triaging", "started from its group")
+    ws.set_active(f.id)
+    b = groups.brief(f, f.state())
+    if args.json:
+        _print_json(b)
+        return 0
+    print(f"{f.id} started (part of {b['group']})")
+    print(f"  result when done: {b['outcome']}")
+    print(f"  verified on its own by: {b['verify_alone']}")
+    if b["sources"]:
+        print(f"  source: {b['source_document'] or '-'} {', '.join(str(s) for s in b['sources'])}")
+    if b["code_status"]:
+        print(f"  code today: {b['code_status']}")
+    if b["built_on"]:
+        print("  built on: " + ", ".join(f"{x['key']} ({x['feature_id']})" for x in b["built_on"]))
+    for d in b["shared_decisions"]:
+        print(f"  group decision {d.get('id', '')}: {d.get('question')} -> {d.get('answer')}")
+    print("  Copy the group decisions into requirements.json (decided_by: group) instead of asking again. "
+          "Then classify it like any request - including its own size.")
     return 0
 
 
 def _status_data(f: Feature) -> Dict[str, Any]:
-    from runtime import redpill
+    from runtime import groups, redpill
     from runtime.approvals.gates import design_status, final_status
     from runtime.state.machine import STATE_LABELS, next_human_decision
     from runtime.verification import evidence, failures
@@ -142,6 +275,12 @@ def _status_data(f: Feature) -> Dict[str, Any]:
     return {
         "feature_id": f.id,
         "title": st["title"],
+        "kind": st.get("kind", "feature"),
+        "parent": st.get("parent"),
+        "size": st.get("size"),
+        "split_approval": groups.split_status(f, st),
+        "children": [{k: r[k] for k in ("key", "feature_id", "state", "mode", "title")}
+                     for r in groups.ordered_children(f, st)],
         "state": st["state"],
         "state_label": STATE_LABELS.get(st["state"], st["state"]),
         "mode": st.get("mode"),
@@ -172,16 +311,31 @@ def _format_status(d: Dict[str, Any]) -> str:
     g = d["git"]
     git_line = "no git" if not g["git"] else f"{(g['commit_sha'] or '')[:10]}" + (
         f" ({len(g['dirty_paths'])} uncommitted changes)" if g["dirty"] else " (clean)")
-    lines = [
-        f"{d['feature_id']} — {d['title']}",
-        f"state: {d['state_label']} ({d['state']})  |  mode: {d['mode'] or 'unclassified'}",
-        f"approvals: design {ap(d['required_gates']['design'], d['design_approval'])} / "
-        f"final {ap(d['required_gates']['final'], d['final_approval'])}"
-        + (f"  (why: {', '.join(d['gate_reasons'])})" if d["gate_reasons"] else ""),
-        f"open questions {len(d['open_questions'])}  |  tasks {d['tasks']['total']} {_fmt_counts(d['tasks']['by_status'])}  |  "
-        f"required tests {d['tests']['required']} {_fmt_counts(d['tests']['by_status'])}",
-        f"unresolved failures: {', '.join(d['unresolved_failures']) or 'none'}  |  code: {git_line}",
-    ]
+    part = f"  |  part of {d['parent']}" if d.get("parent") else ""
+    if d.get("kind") == "group":
+        done = sum(1 for c in d["children"] if c["state"] == "completed")
+        lines = [
+            f"{d['feature_id']} — {d['title']}  [group]",
+            f"state: {d['state_label']} ({d['state']}){part}",
+            f"split approval: {ap(True, d['split_approval'])}  |  features: {done} of {len(d['children'])} done",
+        ]
+        lines += [f"  {c['feature_id']}  {c['mode'] or '--'}  {c['state']}  {c['title']}" for c in d["children"]]
+        lines += [
+            f"group checks {d['tests']['required']} {_fmt_counts(d['tests']['by_status'])}",
+            f"unresolved failures: {', '.join(d['unresolved_failures']) or 'none'}  |  code: {git_line}",
+        ]
+    else:
+        size = f"  |  size: {d['size']['decision']}" if d.get("size") else ""
+        lines = [
+            f"{d['feature_id']} — {d['title']}",
+            f"state: {d['state_label']} ({d['state']})  |  mode: {d['mode'] or 'unclassified'}{size}{part}",
+            f"approvals: design {ap(d['required_gates']['design'], d['design_approval'])} / "
+            f"final {ap(d['required_gates']['final'], d['final_approval'])}"
+            + (f"  (why: {', '.join(d['gate_reasons'])})" if d["gate_reasons"] else ""),
+            f"open questions {len(d['open_questions'])}  |  tasks {d['tasks']['total']} {_fmt_counts(d['tasks']['by_status'])}  |  "
+            f"required tests {d['tests']['required']} {_fmt_counts(d['tests']['by_status'])}",
+            f"unresolved failures: {', '.join(d['unresolved_failures']) or 'none'}  |  code: {git_line}",
+        ]
     active_wt = [k for k, v in d.get("worktrees", {}).items() if v == "active"]
     if d.get("worktrees"):
         lines.append("worktrees: " + ", ".join(f"{k} {v}" for k, v in sorted(d["worktrees"].items()))
@@ -279,7 +433,26 @@ def cmd_transition(ws: Workspace, args) -> int:
     _revalidate(f)
     st = machine.transition(f, args.to, args.reason or "")
     print(f"{f.id}: -> {st['state']}")
+    _after_child(ws, f, st)
     return 0
+
+
+def _after_child(ws: Workspace, f: Feature, st: Dict[str, Any]) -> None:
+    from runtime import groups
+
+    if not st.get("parent") or st["state"] not in groups.DONE:
+        return
+    parent = Feature(ws, st["parent"])
+    pst = parent.load("state")
+    if not pst:
+        return
+    if ws.active_feature_id() in (f.id, None):
+        ws.set_active(parent.id)
+    left = groups.unfinished(parent, pst)
+    if left:
+        print(f"{parent.id}: {len(left)} feature(s) left. Next: `hr start -f {parent.id}`")
+    else:
+        print(f"{parent.id}: every feature is finished. Run the group checks: `hr transition integrating -f {parent.id}`")
 
 
 def cmd_plan_check(ws: Workspace, args) -> int:
@@ -597,6 +770,20 @@ def cmd_approve(ws: Workspace, args) -> int:
         raise GateError("not approved: the human pointed out " + ", ".join(concerns) + ". Address each point "
                         "(change the plan and resubmit, or explain why it is fine) and ask for approval again.")
     st = f.state()
+    if args.gate == "split":
+        from runtime import groups
+
+        rec = groups.approve_split(f, st, by, args.note or "", proof)
+        made = groups.sync_children(f, st)
+        f.save_state(st)
+        print(f"split approval recorded: {by} via {who['via']} | bundle {rec['bundle_hash'][:12]}")
+        for fid in made["created"]:
+            print(f"  created: {fid} (waiting)")
+        for fid in made["cancelled"]:
+            print(f"  cancelled: {fid} (removed from the split)")
+        machine.transition(f, "delivering", "split approved", actor=f"human:{by}")
+        print(f"state -> delivering. Start the first feature: `hr start -f {f.id}`")
+        return 0
     if args.gate == "design":
         rec = gates.approve_design(f, st, by, args.scope or "", args.note or "", proof)
         f.save_state(st)
@@ -617,12 +804,12 @@ def cmd_reject(ws: Workspace, args) -> int:
 
     f = _feature(ws, args)
     st = f.state()
-    expected = "awaiting_design_approval" if args.gate == "design" else "awaiting_final_approval"
+    expected = GATE_STATES[args.gate]
     if st["state"] != expected:
         raise GateError(f"a {args.gate} change request is recorded only in {expected} (current: {st['state']})")
     from runtime import human
 
-    target = args.to or ("clarifying" if args.gate == "design" else "rework_required")
+    target = args.to or {"design": "clarifying", "split": "splitting"}.get(args.gate, "rework_required")
     proof = human.proof_fields(human.resolve(ws, args.by or "user (chat)", args.quote, _gate_since(f, args)))
     f.emit("approval_rejected", gate=args.gate, reason=args.reason, by=args.by or "user (chat)", **proof)
     machine.transition(f, target, f"{args.gate} change requested: {args.reason}")
@@ -756,10 +943,17 @@ def cmd_abort(ws: Workspace, args) -> int:
     from runtime.state import machine
 
     f = _feature(ws, args)
+    from runtime import groups
+
+    waiting = [Feature(ws, r["feature_id"]) for r in groups.children_of(f) if r["state"] == "proposed"]
     st = machine.transition(f, "cancelled", args.reason or "aborted by user")
+    for child in waiting:
+        machine.transition(child, "cancelled", f"group {f.id} was cancelled")
+        print(f"{child.id}: cancelled (was waiting in {f.id})")
     if ws.active_feature_id() == f.id:
         ws.set_active(None)
     print(f"{f.id}: cancelled. Records ({f.dir}) and the work branch ({st['git'].get('branch') or '-'}) are kept.")
+    _after_child(ws, f, st)
     return 0
 
 
@@ -946,12 +1140,24 @@ def cmd_redpill(ws: Workspace, args) -> int:
     ws.require_init()
     if args.redpill_cmd in ("on", "off") and args.quote is not None:
         human.verify(ws, args.quote)
+    if args.redpill_cmd in ("brief", "seed"):
+        f = _feature(ws, args)
+        if not args.gate:
+            raise HRError("--gate design|final is required")
+        if args.redpill_cmd == "brief":
+            b = redpill.brief(f, args.gate)
+            if args.json:
+                _print_json(b)
+            else:
+                print(b["prompt"])
+            return 0
+        if not args.source:
+            raise HRError("--from <file|-> is required")
+        res = redpill.seed(f, args.gate, _read_json_arg(args.source if args.source == "-" else "@" + args.source))
+        print(f"{res['count']} candidates accepted for the {res['gate']} gate")
+        return 0
     if args.redpill_cmd == "on":
-        values = {"enabled": True}
-        if args.one_in is not None:
-            if args.one_in < 1:
-                raise HRError("--one-in must be at least 1")
-            values["one_in"] = args.one_in
+        values = {"enabled": True, **_redpill_values(None, args.difficulty, args.one_in, args.author)}
         if args.gates:
             gates = [g.strip() for g in args.gates.split(",") if g.strip()]
             if not gates or any(g not in ("design", "final") for g in gates):
@@ -967,9 +1173,17 @@ def cmd_redpill(ws: Workspace, args) -> int:
         who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
         print(redpill.reveal(f, who["by"], human.proof_fields(who)))
         return 0
-    s = redpill.settings(ws)
-    print(f"Red pill mode: {'on' if s['enabled'] else 'off'}  |  about 1 in {s['one_in']} approval requests  |  "
-          f"gates: {', '.join(s['gates'])}  |  language: {s['language']}")
+    _print_redpill(ws)
+    prog = redpill.progress(ws)
+    print(f"all features: drills {prog['drills']}, caught {prog['caught']}, caught after a refusal "
+          f"{prog['caught_after_refusal']}, missed {prog['missed']}, rubber stamps {prog['rubber_stamps']}, "
+          f"catch rate {prog['catch_rate']}")
+    for d, row in prog["by_difficulty"].items():
+        if row["drills"]:
+            print(f"  {d}: caught {row['caught']}, after a refusal {row['caught_after_refusal']}, "
+                  f"missed {row['missed']}, catch rate {row['catch_rate']}")
+    if prog["missed_categories"]:
+        print("  missed most: " + ", ".join(f"{k} x{v}" for k, v in list(prog["missed_categories"].items())[:3]))
     fid = getattr(args, "feature", None) or ws.active_feature_id()
     if fid:
         st = redpill.stats(ws.resolve(fid))
@@ -980,10 +1194,13 @@ def cmd_redpill(ws: Workspace, args) -> int:
 
 def cmd_list(ws: Workspace, args) -> int:
     ws.require_init()
+    from runtime import groups
+
     active = ws.active_feature_id()
-    for fid in ws.list_features():
-        st = Feature(ws, fid).state()
-        print(f"{'*' if fid == active else ' '} {fid}  {st.get('mode') or '--'}  {st['state']}  {st['title']}")
+    for row in groups.tree(ws):
+        fid, st = row["feature_id"], row["state"]
+        grade = "group" if groups.is_group(st) else (st.get("mode") or "--")
+        print(f"{'*' if fid == active else ' '} {'  ' * row['depth']}{fid}  {grade}  {st['state']}  {st['title']}")
     return 0
 
 
@@ -1002,6 +1219,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("init", cmd_init, "initialize .human-rights/", feature=False)
     sp.add_argument("--language", help="report language for human-facing documents: en or ko")
     sp.add_argument("--agents", help="sub-agent model preset: balanced, quality, economy, inherit")
+    sp.add_argument("--redpill", help="red pill review drills: on or off")
+    sp.add_argument("--redpill-difficulty", help="easy, normal, hard, or adaptive")
+    sp.add_argument("--redpill-one-in", type=int, help="plant a drill in about 1 of N approval requests")
     sp = add("agents", cmd_agents, "model and effort each sub-agent runs with (from config.yaml agents:)", feature=False)
     sp.add_argument("--json", action="store_true")
     sp = add("new", cmd_new, "create a feature (-> triaging)", feature=False)
@@ -1012,6 +1232,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--axes", required=True, help="JSON, @file, or - (stdin)")
     sp.add_argument("--flags", help="physical_safety,vehicle_command,auth,secrets,destructive_migration,irreversible_external")
     sp.add_argument("--note")
+    sp.add_argument("--size", choices=("single", "compound"), help="one feature, or several separately verifiable results")
+    sp.add_argument("--size-reason")
+    sp = add("size", cmd_size, "record the size decision on its own (single feature, or compound -> split)")
+    sp.add_argument("size", choices=("single", "compound"))
+    sp.add_argument("--reason", required=True)
+    sp = add("split-check", cmd_split_check, "split quality hard gate for a group (split.json + group checks)")
+    sp.add_argument("--json", action="store_true")
+    sp = add("start", cmd_start, "start the next waiting feature of a group (or -f a waiting feature)")
+    sp.add_argument("--json", action="store_true")
     sp = add("status", cmd_status, "current status")
     sp.add_argument("--json", action="store_true")
     add("list", cmd_list, "list features", feature=False)
@@ -1059,8 +1288,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--fix-task")
     sp.add_argument("--retest")
     sp.add_argument("--json", action="store_true")
-    sp = add("approve", cmd_approve, "[human decision: --by, or --quote from chat] design / final approval")
-    sp.add_argument("gate", choices=("design", "final"))
+    sp = add("approve", cmd_approve, "[human decision: --by, or --quote from chat] design / final / split approval")
+    sp.add_argument("gate", choices=("design", "final", "split"))
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--flag", nargs="+", metavar="ID", help="items the human pointed out in that message")
@@ -1068,9 +1297,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--note")
     sp.add_argument("--risks", help="residual risks accepted with the final approval")
     sp = add("reject", cmd_reject, "record a human change request on an approval item")
-    sp.add_argument("gate", choices=("design", "final"))
+    sp.add_argument("gate", choices=("design", "final", "split"))
     sp.add_argument("--reason", required=True)
-    sp.add_argument("--to", choices=("clarifying", "planning", "investigating", "rework_required"))
+    sp.add_argument("--to", choices=("clarifying", "planning", "investigating", "rework_required", "splitting"))
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp = add("unblock", cmd_unblock, "[human decision: --by, or --quote from chat] release an escalation")
@@ -1115,7 +1344,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--from", dest="source", help="template pack directory (default: the plugin's)")
     sp.add_argument("--force", action="store_true")
     sp = add("scaffold", cmd_scaffold, "create feature docs from templates (repo templates first)")
-    sp.add_argument("docs", nargs="*", help="overview requirements design verification codebase research tasks l0-summary review-report")
+    sp.add_argument("docs", nargs="*", help="overview requirements design verification codebase research tasks l0-summary review-report group")
     sp.add_argument("--overwrite", action="store_true")
     sp = add("flag", cmd_flag, "[human decision: --by, or --quote from chat] point at an item in the approval material you would not approve")
     sp.add_argument("items", nargs="+", metavar="ID")
@@ -1123,8 +1352,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--note")
     sp = add("redpill", cmd_redpill, "red pill mode: random review-vigilance drills (on/off/reveal are human decisions)")
-    sp.add_argument("redpill_cmd", choices=("on", "off", "status", "reveal"))
+    sp.add_argument("redpill_cmd", choices=("on", "off", "status", "reveal", "brief", "seed"))
     sp.add_argument("--one-in", type=int, help="plant a drill in about 1 of N approval requests")
+    sp.add_argument("--difficulty", help="easy, normal, hard, or adaptive")
+    sp.add_argument("--author", help="who writes the drills: agent (tailored to each plan) or builtin")
+    sp.add_argument("--gate", choices=("design", "final"), help="brief / seed: which approval gate")
+    sp.add_argument("--from", dest="source", help="seed: candidates JSON file, or - for stdin")
+    sp.add_argument("--json", action="store_true")
     sp.add_argument("--gates", help="design, final, or design,final")
     sp.add_argument("--language", help="en or ko (default: docs.language)")
     sp.add_argument("--by")

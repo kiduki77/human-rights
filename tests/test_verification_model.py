@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from helpers import ONE
 from helpers import L3_AXES, PASS_CMD, Repo, install_example_plan
 from runtime.common import fingerprint
 from runtime.state.store import Workspace
@@ -24,7 +25,7 @@ class Base(unittest.TestCase):
         r = self.r
         r.hr("init")
         r.hr("new", "Multi-vehicle control", "--slug", "multi-drone")
-        r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
         self.fdir = install_example_plan(r)
         r.hr("transition", "planning")
 
@@ -107,7 +108,7 @@ class PlanRulesTest(Base):
                 axes[k]["score"] = 1
             r.hr("init")
             r.hr("new", "Interval field")
-            code, out = r.hr("classify", "--axes", json.dumps(axes))
+            code, out = r.hr("classify", "--axes", json.dumps(axes), *ONE)
             self.assertIn("mode: L2", out)
             self.assertTrue(r.state()["required_gates"]["design"])
             self.assertFalse(r.state()["required_gates"]["final"])

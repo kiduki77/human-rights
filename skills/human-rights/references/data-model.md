@@ -25,6 +25,20 @@ Final approval and test results are bound to the **code tree fingerprint**: the 
 `.human-rights/` excluded. So committing `.human-rights/` documents never breaks an approval, while a one-character
 code change does.
 
+## Groups
+
+A group (a compound request) has `kind: "group"` in `state.json` and two files you write:
+
+- `.internal/split.json`: `children` (each `key`, `title`, `outcome`, `verify_alone`, optional `depends_on`,
+  `expected_mode`, `sources`, `code_status`), `shared_decisions`, `excluded`, and optional `source`
+  (`kind: request|document`, `path`, `unread`). Schema: `schemas/split.schema.json`. Example and rules:
+  [splitting](splitting.md).
+- `.internal/test-plan.json`: the checks of the features working together. Same shape as a feature's test
+  plan, plus `children` on each test (the feature keys it exercises).
+
+The runtime writes the rest: `children` (key to feature id), `approvals.split`, and on each created feature
+`parent` and `group_key`. A feature records its size decision in `size`.
+
 ## Minimal examples
 
 `requirements.json`

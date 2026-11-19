@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from helpers import ONE
 from helpers import L3_AXES, Repo, install_example_plan
 from runtime import docs, redpill
 from runtime.state.store import Workspace
@@ -12,7 +13,7 @@ class KoreanDocsTest(unittest.TestCase):
         self.r = Repo()
         self.r.hr("init", "--language", "ko")
         self.r.hr("new", "다중 기체 제어", "--slug", "multi-drone")
-        self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        self.r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
 
     def tearDown(self):
         self.r.cleanup()
@@ -37,7 +38,7 @@ class KoreanDocsTest(unittest.TestCase):
     def test_rendered_tables_and_plants_are_korean(self):
         r = self.r
         install_example_plan(r)
-        r.hr("redpill", "on", "--one-in", "1")
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
         r.hr("transition", "planning")
         r.hr("transition", "awaiting_design_approval")
         f = Workspace(r.root).resolve(None)
@@ -67,7 +68,8 @@ class AgentSettingsTest(unittest.TestCase):
             r.hr("init", "--agents", "inherit")
             s = json.loads(r.hr("agents", "--json")[1])
             self.assertEqual({k: v["agent_call"] for k, v in s.items()},
-                             {"investigator": {}, "plan_reviewer": {}, "task_worker": {}, "tester": {}})
+                             {"investigator": {}, "plan_reviewer": {}, "task_worker": {}, "tester": {},
+                              "redpill_author": {}})
             r.hr("init", "--agents", "economy")
             s = json.loads(r.hr("agents", "--json")[1])
             self.assertEqual(s["investigator"]["agent_call"], {"model": "haiku"})

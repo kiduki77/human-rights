@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "split.json",
+  "type": "object",
+  "description": "How a compound request is divided into features. Written by the agent, approved by the human (hr approve split).",
+  "required": [
+    "children",
+    "shared_decisions",
+    "excluded"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "request",
+            "document"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "unread": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "ref",
+              "reason"
+            ],
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "children": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "outcome",
+          "verify_alone"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "verify_alone": {
+            "type": "string"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_mode": {
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "group"
+            ]
+          },
+          "code_status": {
+            "enum": [
+              "missing",
+              "partial",
+              "exists",
+              "conflict"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "shared_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "question",
+          "answer"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "decided_by": {
+            "enum": [
+              "user",
+              "default",
+              "code"
+            ]
+          },
+          "overrides_user_answer": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "safety": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "excluded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item",
+          "reason"
+        ],
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

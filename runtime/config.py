@@ -27,16 +27,24 @@ scheduler:
   max_parallel_tasks: 3
   worktree_root: ""
 
+groups:
+  max_active_children: 1
+
 redpill:
   enabled: false
   one_in: 10
   gates: [design, final]
+  difficulty: adaptive
+  author: agent
   language: ""
 
 docs:
   language: en
   l0_summary_max_lines: 15
   overview_max_lines: 120
+  prose_check: error
+  banned_phrases: []
+  allowed_phrases: []
 
 agents:
   preset: balanced
@@ -48,6 +56,8 @@ agents:
   task_worker_effort: high
   tester_model: sonnet
   tester_effort: high
+  redpill_author_model: sonnet
+  redpill_author_effort: high
 """
 
 AGENT_ROLES = {
@@ -55,16 +65,19 @@ AGENT_ROLES = {
     "plan_reviewer": "hr-plan-reviewer",
     "task_worker": "hr-task-worker",
     "tester": "hr-tester",
+    "redpill_author": "hr-redpill-author",
 }
 AGENT_PRESETS = {
     "balanced": {"investigator": ("sonnet", "medium"), "plan_reviewer": ("opus", "high"),
-                 "task_worker": ("sonnet", "high"), "tester": ("sonnet", "high")},
+                 "task_worker": ("sonnet", "high"), "tester": ("sonnet", "high"),
+                 "redpill_author": ("sonnet", "high")},
     "quality": {"investigator": ("opus", "medium"), "plan_reviewer": ("opus", "high"),
-                "task_worker": ("opus", "high"), "tester": ("opus", "high")},
+                "task_worker": ("opus", "high"), "tester": ("opus", "high"), "redpill_author": ("opus", "high")},
     "economy": {"investigator": ("haiku", ""), "plan_reviewer": ("sonnet", "high"),
-                "task_worker": ("sonnet", "medium"), "tester": ("sonnet", "medium")},
+                "task_worker": ("sonnet", "medium"), "tester": ("sonnet", "medium"),
+                "redpill_author": ("sonnet", "medium")},
     "inherit": {"investigator": ("inherit", ""), "plan_reviewer": ("inherit", ""),
-                "task_worker": ("inherit", ""), "tester": ("inherit", "")},
+                "task_worker": ("inherit", ""), "tester": ("inherit", ""), "redpill_author": ("inherit", "")},
 }
 MODEL_ALIASES = ("sonnet", "opus", "haiku", "fable", "inherit")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")

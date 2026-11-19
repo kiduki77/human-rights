@@ -14,6 +14,7 @@ SCHEMA_FOR = {
     "test_plan": "test-plan.schema.json",
     "test_results": "test-results.schema.json",
     "failures": "failures.schema.json",
+    "split": "split.schema.json",
 }
 
 

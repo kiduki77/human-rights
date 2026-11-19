@@ -13,6 +13,8 @@ and how often the reviewer has to ask again, not by how thorough they look.
 
 ## Writing rules
 
+- **Plain sentences, in every language.** Each sentence states something the reader can check. The rules,
+  examples and the wording scan are in [writing](writing.md). Read it before you write.
 - Conclusion first. Short paragraphs, meaningful headings, tables for comparisons.
 - Never fill the body with raw logs, file lists, or call graphs. Put detailed evidence in `details/` and link it.
 - Don't cut real content to make a long document shorter. Split it into a **summary plus detailed references**.
@@ -47,6 +49,7 @@ behind the pack. `hr templates update` refreshes only files that weren't customi
 | Document | Audience | Content |
 |---|---|---|
 | `overview.md` | the approver | goal, state, decisions, next action |
+| `overview.md` of a group | the approver | the feature list and order, shared decisions, what is left out, group checks |
 | `requirements.md` | the approver | intent, scope, acceptance criteria, decisions, open items |
 | `design.md` | the approver / reviewer | key design, alternatives, task DAG, uncertainty |
 | `verification.md` | the approver / QA | test plan, results, residual risk |
@@ -57,6 +60,7 @@ behind the pack. `hr templates update` refreshes only files that weren't customi
 
 1. `hr doc-check` (structural): required `hr:*` blocks present, minimum number of sections, no `[FILL: ...]`
    placeholders, no broken relative links, valid Mermaid openings and balanced brackets, a diagram where one is required, no raw-log dumps,
-   and length budgets for L0/L1/overview. The check is language-agnostic.
+   and length budgets for L0/L1/overview. These checks are language-agnostic. It also scans documents and
+   plan text for filler wording ([writing](writing.md)); a hit is an error.
 2. Independent review (`hr-plan-reviewer`) for approval documents: clarity, duplication, actionability,
-   and whether the text matches the evidence.
+   wording, and whether the text matches the evidence.

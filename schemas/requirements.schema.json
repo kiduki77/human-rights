@@ -105,7 +105,8 @@
             "enum": [
               "user",
               "default",
-              "code"
+              "code",
+              "group"
             ]
           },
           "safety": {

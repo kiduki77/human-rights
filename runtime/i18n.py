@@ -26,6 +26,16 @@ TEXT: Dict[str, Dict[str, str]] = {
         "decide_design": "review the design, then approve, point out problems, or request changes in chat",
         "decide_final": "review the result, then approve (with any residual risk you accept), point out problems, "
                         "or request changes in chat",
+        "decide_split": "review the list of features, then approve, or say in chat what to drop, merge, add or "
+                        "reorder",
+        "group": "group", "split_approval": "Split approval", "features": "Features", "feature": "Feature",
+        "outcome": "Result when done", "verify_alone": "Verified on its own by", "built_on": "Built on",
+        "expected_mode": "Expected grade", "sources": "Source", "code_now": "Code today", "part_of": "Part of",
+        "no_features": "_no features listed yet_", "no_shared": "_nothing decided for the whole group_",
+        "no_excluded": "_nothing left out_", "left_out": "Mentioned but not built here", "why_not": "Why not",
+        "unread": "Not read - check these yourself", "part": "Part", "reason": "Reason",
+        "progress": "Progress", "progress_value": "{done} of {total} features done",
+        "source_document": "Source document",
         "decide_escalation": "escalation: {reason} - decide in chat how to proceed (that releases it)",
         "decide_blocker": "resolve blocker: {reason}",
         "decide_questions": "answer open questions: {qs}",
@@ -53,6 +63,15 @@ TEXT: Dict[str, Dict[str, str]] = {
         "assumption": "가정",
         "decide_design": "설계를 검토하고 채팅으로 승인, 문제 지적, 변경 요청 중 하나를 알려주세요",
         "decide_final": "결과를 검토하고 채팅으로 승인(감수할 잔여 위험 포함), 문제 지적, 변경 요청 중 하나를 알려주세요",
+        "decide_split": "기능 목록을 검토하고 채팅으로 승인하거나, 뺄 것·합칠 것·추가할 것·순서를 알려주세요",
+        "group": "묶음", "split_approval": "분할 승인", "features": "기능", "feature": "기능",
+        "outcome": "완료되면 되는 것", "verify_alone": "단독 검증 방법", "built_on": "선행 기능",
+        "expected_mode": "예상 등급", "sources": "출처", "code_now": "현재 코드", "part_of": "소속 묶음",
+        "no_features": "_아직 기능 목록 없음_", "no_shared": "_묶음 전체에 대한 결정 없음_",
+        "no_excluded": "_제외한 것 없음_", "left_out": "요청에 있지만 여기서 만들지 않는 것", "why_not": "제외 이유",
+        "unread": "읽지 못한 부분 - 직접 확인해 주세요", "part": "부분", "reason": "이유",
+        "progress": "진행", "progress_value": "기능 {total}개 중 {done}개 완료",
+        "source_document": "원본 문서",
         "decide_escalation": "에스컬레이션: {reason} - 어떻게 진행할지 채팅으로 결정해 주세요 (그러면 해제됩니다)",
         "decide_blocker": "막힌 원인 해결: {reason}",
         "decide_questions": "남은 질문에 답해 주세요: {qs}",
@@ -63,7 +82,8 @@ TEXT: Dict[str, Dict[str, str]] = {
 }
 
 STATES_KO = {
-    "created": "생성됨", "triaging": "분류 중", "clarifying": "의도 확인 중", "investigating": "코드 조사 중",
+    "created": "생성됨", "proposed": "묶음에서 대기 중", "splitting": "기능으로 나누는 중",
+    "awaiting_split_approval": "분할 승인 대기", "delivering": "기능 진행 중", "triaging": "분류 중", "clarifying": "의도 확인 중", "investigating": "코드 조사 중",
     "planning": "설계·분해 중", "awaiting_design_approval": "설계 승인 대기", "executing": "구현 중",
     "verifying_tasks": "작업 검증 중", "integrating": "통합 테스트 중", "awaiting_final_approval": "최종 승인 대기",
     "ready_to_merge": "머지 준비 완료", "completed": "완료", "blocked": "막힘", "rework_required": "재작업 필요",
@@ -77,11 +97,12 @@ VALUES_KO = {
     "level": {"task": "작업", "integration": "통합"},
     "runner": {"command": "스크립트", "agent": "에이전트", "human": "사람"},
     "regression": {"targeted": "영향 범위만", "full": "전체"},
-    "decided_by": {"user": "사용자", "default": "제안 기본값", "code": "기존 코드"},
+    "decided_by": {"user": "사용자", "default": "제안 기본값", "code": "기존 코드", "group": "묶음 결정"},
+    "code_status": {"missing": "없음", "partial": "일부 있음", "exists": "이미 있음", "conflict": "충돌"},
 }
 VALUES_EN = {
     "runner": {"command": "script", "agent": "agent", "human": "human"},
-    "decided_by": {"user": "you", "default": "proposed default", "code": "existing code"},
+    "decided_by": {"user": "you", "default": "proposed default", "code": "existing code", "group": "group decision"},
 }
 
 MARKS = {

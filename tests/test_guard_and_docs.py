@@ -3,6 +3,7 @@ import subprocess
 import sys
 import unittest
 
+from helpers import ONE
 from helpers import EXAMPLE, PLUGIN, Repo, install_example_plan
 
 GUARD = PLUGIN / "hooks" / "approval_guard.py"
@@ -42,7 +43,7 @@ class DocCheckTest(unittest.TestCase):
         self.r.hr("new", "Multi-vehicle control")
         from helpers import L3_AXES
 
-        self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command")
+        self.r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
 
     def tearDown(self):
         self.r.cleanup()

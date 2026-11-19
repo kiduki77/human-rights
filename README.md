@@ -8,14 +8,14 @@
 <p><b>AI writes the code. Humans own the decisions.</b></p>
 
 <p>A human-led, AI-executed development workflow for Claude Code.<br>
-The right amount of process for each request, and a small runtime that makes the human gates real.</p>
+It picks how much process each request gets, and a small runtime enforces the human approvals.</p>
 
 <p>
-<img alt="version" src="https://img.shields.io/badge/version-0.4.0-b4441c">
+<img alt="version" src="https://img.shields.io/badge/version-0.5.0-b4441c">
 <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-1d1b16">
 <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab">
 <img alt="dependencies" src="https://img.shields.io/badge/dependencies-stdlib%20only-2f7a4a">
-<img alt="tests" src="https://img.shields.io/badge/tests-56%20passing-2f7a4a">
+<img alt="tests" src="https://img.shields.io/badge/tests-129%20passing-2f7a4a">
 <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -23,6 +23,7 @@ The right amount of process for each request, and a small runtime that makes the
 <a href="#why">Why</a> ·
 <a href="#quick-start">Quick start</a> ·
 <a href="#how-it-works">How it works</a> ·
+<a href="#big-requests-are-split-first">Splitting</a> ·
 <a href="#what-the-runtime-enforces">Enforcement</a> ·
 <a href="#red-pill-mode">Red pill mode</a> ·
 <a href="#parallel-execution">Parallel</a> ·
@@ -50,25 +51,26 @@ Design approval needed. Approve, point at anything that looks wrong, or ask for 
 ## Why
 
 AI agents now write more code than anyone can review line by line, and unverified code gets approved anyway.
-**human-rights doesn't make you read every line.** It makes sure you understand and control what matters: the
+**human-rights doesn't make you read every line.** It puts in front of you what you decide on: the
 requirements, the acceptance criteria, the risks, the reason for each change, and the evidence.
 
 <table>
 <tr><th width="50%">Without it</th><th width="50%">With it</th></tr>
-<tr><td>Every request gets the same heavy process, or none at all</td><td>✅ Trivial edits finish immediately; risky changes get questions, design review, and gates</td></tr>
-<tr><td>The agent guesses at undecided policy</td><td>✅ Decisions that change the design are asked as 3-5 focused questions; safety policy must come from you</td></tr>
-<tr><td>"Tests pass" because the agent said so</td><td>✅ A pass is a recorded run on the exact commit you approve</td></tr>
-<tr><td>An approval survives plan changes</td><td>✅ Approvals are bound to plan hashes and code fingerprints, so any change invalidates them</td></tr>
-<tr><td>You approve a wall of text you didn't read</td><td>✅ Reports lead with the conclusion and your decision, and <a href="#red-pill-mode">red pill mode</a> checks that you read them</td></tr>
+<tr><td>Every request gets the same heavy process, or none at all</td><td>Trivial edits finish immediately; risky changes get questions, design review, and gates</td></tr>
+<tr><td>A big request becomes one plan too large to review</td><td>It is split into features, and you approve that list before any work starts</td></tr>
+<tr><td>The agent guesses at undecided policy</td><td>Decisions that change the design are asked as 3-5 focused questions; safety policy must come from you</td></tr>
+<tr><td>"Tests pass" because the agent said so</td><td>A pass is a recorded run on the commit you approve</td></tr>
+<tr><td>An approval survives plan changes</td><td>Approvals are bound to plan hashes and code fingerprints, so any change invalidates them</td></tr>
+<tr><td>You approve a wall of text you didn't read</td><td>Reports lead with the conclusion and your decision, filler wording is rejected, and <a href="#red-pill-mode">red pill mode</a> checks that you read them</td></tr>
 </table>
 
-It's a Claude Code plugin in the spirit of pstack and gstack, with two halves:
+It is a Claude Code plugin with two parts:
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**🧭 One skill**
+**One skill**
 
 Picks the process for each request. That ranges from "just fix it" to "ask, investigate, design, get
 approval, test everything, get approval again".
@@ -76,7 +78,7 @@ approval, test everything, get approval again".
 </td>
 <td width="50%" valign="top">
 
-**🔒 A deterministic runtime, `hr`**
+**A deterministic runtime, `hr`**
 
 Enforces what the skill can't be trusted to enforce: state transitions, approvals bound to hashes and
 commits, test evidence, and failure escalation.
@@ -93,24 +95,26 @@ commits, test evidence, and failure escalation.
 ```text
 /plugin marketplace add kiduki77/human-rights
 /plugin install hrs@human-rights
-/hrs:init                                 set up .human-rights/: report language (en/ko), sub-agent models
+/hrs:init                                 set up .human-rights/: report language, sub-agent models, review drills
 ```
 
 ```text
-/hrs:new center the login card            L0: done in one pass, no ceremony
+/hrs:new center the login card            L0: changed and checked in one pass
 /hrs:new add social login with Google     L2: questions, design, approval
+/hrs:new add login                        compound: split into features, you approve the list
+/hrs:new docs/spec.pptx                   a specification: features traced to its pages
 /hrs:status                               where are we, what do you need from me
 /hrs:resume FEAT-001                      pick up in a new session
 /hrs:review FEAT-001                      the human-facing summary
 /hrs:approve                              approve the gate the feature is waiting on
 /hrs:verify FEAT-001                      run the approved test plan
-/hrs:redpill on 10                        review drills on (off / status)
+/hrs:redpill on 5 hard                    review drills: frequency and difficulty (off / status)
 /hrs:metrics                              lead time, rework, drill catch rate
 /hrs:list                                 every feature
 /hrs:abort FEAT-001                       stop; records and branch are kept
 ```
 
-The first run creates `.human-rights/` in your repo. When the workflow needs a decision, it stops and shows you the exact command to type.
+The first run creates `.human-rights/` in your repo. When the workflow needs a decision, it stops and asks you in chat.
 
 ## How it works
 
@@ -172,6 +176,31 @@ flowchart LR
 
 </details>
 
+## Big requests are split first
+
+"Add login" is several features. A 120-page specification is a handful of changes and a lot of
+background. Planned as one feature, either one produces an approval nobody can review. So the first
+judgment on a request is its size, and a compound request becomes a group of features:
+
+```mermaid
+flowchart LR
+  U[request or document] --> S{one feature?}
+  S -->|yes| F[L0-L3 workflow]
+  S -->|no| G[split into features]
+  G --> A{you approve the list}
+  A -->|drop / merge / add / reorder| G
+  A -->|approved| N[next feature] --> F
+  F -->|done| N
+  N -->|all done| C[check the features together]
+```
+
+- **You approve the scope before any work starts**: each feature's result, the order, the decisions they
+  share, and what was left out and why.
+- **Each feature then runs the normal workflow**, one at a time, with its own grade and approvals. A
+  feature that turns out to be compound splits again.
+- **A document is traced both ways.** Features cite their pages, pages that are not requirements are
+  listed as excluded, and parts that could not be read are listed for you to check.
+
 ## What the runtime enforces
 
 The skill decides *what to do*. `hr` decides **whether it's allowed**, from evidence on disk and never
@@ -179,14 +208,19 @@ from the agent's description of what happened.
 
 <table>
 <tr>
-<td width="33%" valign="top"><b>🚧 No coding on open safety questions</b><br>Implementation is refused while blocking or safety questions remain, or while a safety policy was decided by default.</td>
-<td width="33%" valign="top"><b>📋 No approval for a broken plan</b><br>Plan-check hard fails block the approval request itself.</td>
-<td width="33%" valign="top"><b>🔗 Approvals bound to their subject</b><br>Design approval hashes the plan. Final approval binds to the code tree, with <code>.human-rights/</code> excluded. Any change invalidates the approval and pulls the state back.</td>
+<td width="33%" valign="top"><b>No coding on open safety questions</b><br>Implementation is refused while blocking or safety questions remain, or while a safety policy was decided by default.</td>
+<td width="33%" valign="top"><b>No approval for a broken plan</b><br>Plan-check hard fails block the approval request itself.</td>
+<td width="33%" valign="top"><b>Approvals bound to their subject</b><br>Design approval hashes the plan. Final approval binds to the code tree, with <code>.human-rights/</code> excluded. Any change invalidates the approval and pulls the state back.</td>
 </tr>
 <tr>
-<td valign="top"><b>🧪 A pass is a recorded run</b><br>The exit code, commit, code tree, and log hash are recorded. After a code change a result is <code>stale</code>, unless nothing the test covers was touched.</td>
-<td valign="top"><b>🔁 Repeated failures escalate</b><br>Each failure becomes a <code>FAIL-NNN</code> record. Three in a row, and the feature blocks until a human decides.</td>
-<td valign="top"><b>🧾 Tamper-evident history</b><br>The event log is a hash chain, so <code>hr check</code> catches edits and deletions. <code>hr resume</code> reconciles state with git and GitHub.</td>
+<td valign="top"><b>A pass is a recorded run</b><br>The exit code, commit, code tree, and log hash are recorded. After a code change a result is <code>stale</code>, unless nothing the test covers was touched.</td>
+<td valign="top"><b>Repeated failures escalate</b><br>Each failure becomes a <code>FAIL-NNN</code> record. Three in a row, and the feature blocks until a human decides.</td>
+<td valign="top"><b>Tamper-evident history</b><br>The event log is a hash chain, so <code>hr check</code> catches edits and deletions. <code>hr resume</code> reconciles state with git and GitHub.</td>
+</tr>
+<tr>
+<td valign="top"><b>Scope approved before work</b><br>A compound request can't be planned as one feature. Its features start only after you approve the list, and changing the list needs approval again.</td>
+<td valign="top"><b>No filler in what you read</b><br>Documents and plan text are scanned for filler phrases (English and Korean lists; the reviewer covers other languages). A hit blocks the approval request.</td>
+<td valign="top"><b>Machines test first</b><br>Your "it passed" is refused until every script and agent test has passed.</td>
 </tr>
 </table>
 
@@ -195,7 +229,7 @@ from the agent's description of what happened.
 
 ### Verification is decided with the design
 
-What is tested, who runs it, what exactly counts as a pass, and what it costs to run are all part of the
+What is tested, who runs it, what counts as a pass, and what it costs to run are all part of the
 plan you approve. Changing any of it later invalidates the approval.
 
 | Run by | For | Evidence |
@@ -212,7 +246,7 @@ plan you approve. Changing any of it later invalidates the approval.
 ### Human decisions, in chat
 
 Approvals, review comments, manual test results, releasing escalations, and red pill controls belong to you.
-You make them by just saying so in chat:
+You make them by saying so in chat:
 
 ```text
 you> TEST-014 looks wrong: finishing in 60 s doesn't prove anything     points at an item (review concern)
@@ -235,34 +269,25 @@ denies those commands. If you prefer, you can still run them yourself (`! .human
 
 </div>
 
-Human gates only mean something if the human really reads what they approve. With red pill mode on, roughly one
-in N approval requests gets a **plausible but unacceptable item planted** in the review tables. The plant
-uses the feature's own requirement IDs, modules, and test titles, so it blends in.
+A human gate works only if the human reads what they approve. With red pill mode on, roughly one in N
+approval requests contains **one planted item that must not be approved**. You find it, and you get
+better at reviewing. Each drill ends with the reason the item was wrong.
 
-<table>
-<tr>
-<th width="50%">At design approval</th>
-<th width="50%">At final approval</th>
-</tr>
-<tr>
-<td valign="top">
+| Difficulty | What is planted | You find it by |
+|---|---|---|
+| easy | an added row that says outright that a check proves nothing or a safeguard goes away | reading the row |
+| normal | a row that sounds routine but does not prove what it claims | thinking it through |
+| hard | a real row with one cell changed: a pass criterion, a number, a dependency, a result | comparing it with the requirements and decisions |
 
-A check that proves nothing:<br>
-<code>pass if the run finishes within 60 s (exit code not checked)</code>
+The plants are not taken from a fixed list. Before each approval request a separate agent reads the
+feature and writes candidates that are wrong for that feature: a decision of yours contradicted, a
+boundary shifted, a test that passes while the requirement is broken. It avoids the kinds of flaw used in
+recent drills. The agent that asks for your approval never sees them. On a host without sub-agents, set
+`redpill.author: builtin` to use the runtime's own lists and row changes.
 
-Or a plan step nobody should sign off on:<br>
-<code>Catch and ignore errors so the integration tests pass</code>
-
-</td>
-<td valign="top">
-
-A pass that isn't evidence:<br>
-<code>✅ pass (verified manually by the agent, no log)</code><br>
-<code>✅ pass (ran on the previous commit)</code>
-
-</td>
-</tr>
-</table>
+`adaptive` difficulty (the default) starts easy, moves up after 2 catches in a row, and down after 2
+misses in a row. A catch made after an approval was already refused is recorded separately and does not
+move the level.
 
 Approve without noticing, and you get told off:
 
@@ -277,19 +302,34 @@ you> 승인                                            (with --language ko)
 [blocked] 너는 제대로 검토하지 않았구나 인간. 이러다 다시 AI한테 일자리를 뺏기겠구나 ㅋㅋㅋ 다시 검토하거라.
 ```
 
-Point at the odd row (by ID, or just describe it) and that is your review: the plant disappears and the
-approval goes through in the same step. Point at a real row and it becomes a review concern the agent has to
-address first. Either way you are never scolded for engaging with the material.
+### How to answer
+
+Say it in chat, in your own words. Name the row by its ID or describe it.
+
+| You say | What happens |
+|---|---|
+| "approved", pointing at nothing | With a plant present: told off, not approved. With none: approved. |
+| You point at the planted row | Caught, and approved in the same step. You don't need to add "approved". The reason it was wrong is shown. |
+| You point at a real row | No scolding. It is recorded as a review concern, and approval waits until the agent has dealt with it. |
+| "show me the answer" | The plant and the reason are shown, and it counts as missed. Approve again afterwards. |
+| You ask for a change | Handled as a change request. The drill ends, and the next request draws again. |
+
+The runtime decides whether a row you named is the plant. The agent only passes on what you named, from
+your latest message.
 
 ```text
-you> the "60 s, exit code not checked" check is nonsense    caught it: plant removed, approved
-you> show me the answer                                     give up: see it (recorded as missed)
+you> TEST-010 checks 2 vehicles, but we agreed on 4         caught it: table restored, approved
+     Why it was wrong: you decided on four vehicles (DEC-001), and this criterion checked two.
+     The real value is: AC-001, AC-002 and AC-003 met
+you> show me the answer                                     give up: see it and why (recorded as missed)
 
-/hrs:redpill on 10                        about 1 in 10 approval requests
-/hrs:redpill on 5 final ko                final gate only, Korean scolding
+/hrs:redpill on 5 hard                    about 1 in 5 approval requests, hard
+/hrs:redpill on 10 adaptive final         final gate only, difficulty follows your record
 /hrs:redpill off
-/hrs:redpill status                       settings and catch rate
+/hrs:redpill status                       catch rate per difficulty, kinds of flaw you miss most
 ```
+
+`/hrs:init` asks whether to turn it on, at which difficulty, and how often.
 
 <details>
 <summary><b>Why it's safe</b></summary>
@@ -299,12 +339,13 @@ you> show me the answer                                     give up: see it (rec
 - The plant exists only in the rendered review tables (`overview.md`, `verification.md`). It is never in
   the plan the agent executes and never in `design.md`. So it can't run, can't merge, and doesn't touch
   approval hashes.
-- The runtime rolls the dice, not the agent. The agent is instructed never to hint at a drill or touch the
-  rendered rows.
+- The runtime decides by random draw when to plant and which candidate to use. The candidates are stored
+  where the approving agent is denied access, and that agent is instructed never to hint at a drill or
+  touch the rendered rows.
 - If you point at a real item instead, it is recorded as a review concern and the agent has to address it.
   The agent passes only the items you named, and the event log keeps your exact words next to each flag.
-- It's off by default. Only you can turn it on, change the frequency, or turn it off.
-- `hr metrics` keeps score: drills, catches, misses, and refused rubber-stamp approvals.
+- It's off by default. Only you can turn it on, change the difficulty or frequency, or turn it off.
+- `hr metrics` records drills, catches, catches after a refusal, misses, and refused rubber-stamp approvals.
 
 </details>
 
@@ -325,9 +366,9 @@ run alone.
 
 <table>
 <tr>
-<td width="33%" valign="top"><b>🗂 Isolated</b><br>Worktrees live outside the repo (<code>&lt;repo&gt;.hr-worktrees/</code>), so your test runners and linters never pick them up.</td>
-<td width="33%" valign="top"><b>🧹 Clean merges or none</b><br>A conflict aborts the merge, leaves the integration branch untouched, and sends the task back to rework.</td>
-<td width="33%" valign="top"><b>🎯 Verified as integrated</b><br>Worktree evidence goes stale after merging. Final verification runs on the exact integrated code, concurrently where tests opt in.</td>
+<td width="33%" valign="top"><b>Isolated</b><br>Worktrees live outside the repo (<code>&lt;repo&gt;.hr-worktrees/</code>), so your test runners and linters never pick them up.</td>
+<td width="33%" valign="top"><b>A conflict stops the merge</b><br>A conflict aborts the merge, leaves the integration branch untouched, and sends the task back to rework.</td>
+<td width="33%" valign="top"><b>Verified as integrated</b><br>Worktree evidence goes stale after merging. Final verification runs on the integrated code, concurrently where tests opt in.</td>
 </tr>
 </table>
 
@@ -346,7 +387,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 ## Reference
 
 <details>
-<summary><b>📁 What it writes in your repo</b></summary>
+<summary><b>What it writes in your repo</b></summary>
 
 <br>
 
@@ -361,7 +402,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
     ├── tasks/TASK-001.md ...
     ├── details/                evidence you read only when you need it
     └── .internal/              machine data
-        ├── requirements.json  task-graph.json  test-plan.json                          written by the agent
+        ├── requirements.json  task-graph.json  test-plan.json  split.json (groups)     written by the agent
         └── state.json  test-results.json  failures.json  events.jsonl  redpill.json  logs/    written by hr only
 ```
 
@@ -371,7 +412,7 @@ tables are generated from recorded evidence by `hr render`, never typed by the a
 </details>
 
 <details>
-<summary><b>⚙️ Configuration</b></summary>
+<summary><b>Configuration</b></summary>
 
 <br>
 
@@ -383,8 +424,10 @@ tables are generated from recorded evidence by `hr render`, never typed by the a
 | `github` | `enabled: auto`, `issue_modes: [L2, L3]`, `draft_pr_modes: [L2, L3]`, `auto_merge: false` |
 | `verification` | `max_same_failure_retries: 3`, `default_timeout_seconds: 900`, `max_parallel_tests: 4` |
 | `scheduler` | `max_parallel_tasks: 3`, `worktree_root` (default: sibling `<repo>.hr-worktrees/`) |
-| `redpill` | `enabled: false`, `one_in: 10`, `gates: [design, final]`, `language` (follows `docs.language`) |
-| `docs` | `language: en`, `l0_summary_max_lines: 15`, `overview_max_lines: 120` |
+| `redpill` | `enabled: false`, `one_in: 10`, `difficulty: adaptive`, `author: agent`, `gates: [design, final]` |
+| `docs` | `language: en`, `l0_summary_max_lines: 15`, `overview_max_lines: 120`, `prose_check: error` |
+| `groups` | `max_active_children: 1` |
+| `agents` | model and effort per sub-agent, from the preset chosen at `/hrs:init` |
 
 Every key: [`references/config.md`](skills/human-rights/references/config.md) · Every command:
 [`references/cli.md`](skills/human-rights/references/cli.md)
@@ -392,7 +435,7 @@ Every key: [`references/config.md`](skills/human-rights/references/config.md) ·
 </details>
 
 <details>
-<summary><b>🧩 Other hosts</b></summary>
+<summary><b>Other hosts</b></summary>
 
 <br>
 
@@ -404,7 +447,7 @@ GitHub branch protection. See [`host-adapters.md`](skills/human-rights/reference
 </details>
 
 <details>
-<summary><b>🏗 Repository layout</b></summary>
+<summary><b>Repository layout</b></summary>
 
 <br>
 
@@ -414,7 +457,8 @@ human-rights/
 ├── skills/human-rights/  SKILL.md (routing + procedure) and references/ (loaded per stage)
 ├── skills/<command>/     /hrs:init, new, status, list, resume, review, approve, verify,
 │                         redpill, metrics, abort
-├── agents/               hr-investigator, hr-plan-reviewer, hr-task-worker, hr-tester
+├── agents/               hr-investigator, hr-plan-reviewer, hr-task-worker, hr-tester,
+│                         hr-redpill-author
 ├── hooks/                approval guard (PreToolUse), active-feature reminder (SessionStart),
 │                         chat decision capture (UserPromptSubmit)
 ├── runtime/              the hr CLI: routing/, state/, approvals/, verification/, scheduler/,
@@ -428,7 +472,7 @@ human-rights/
 </details>
 
 <details>
-<summary><b>🧪 Development</b></summary>
+<summary><b>Development</b></summary>
 
 <br>
 
@@ -436,8 +480,8 @@ human-rights/
 cd tests && python -m unittest
 ```
 
-The runtime uses only the Python 3.8+ standard library, and the suite runs on 3.8 and 3.12. It covers the
-key acceptance scenarios end to end against real temporary git repositories:
+The runtime uses only the Python 3.8+ standard library, and the suite runs on 3.8 and 3.12. It runs these
+scenarios end to end against temporary git repositories:
 
 - L0 completes without approvals;
 - a safety-ambiguous L3 request can't be implemented;
@@ -454,11 +498,11 @@ The code has no comments by convention. Explanations live in the docs.
 </details>
 
 <details>
-<summary><b>📍 Status</b></summary>
+<summary><b>Status</b></summary>
 
 <br>
 
-**v0.4.** All three planned phases are built, plus red pill mode. Human decisions are made in chat, and every action has its own `/hrs:<command>`.
+**v0.5.** All three planned phases are built, plus red pill mode. Human decisions are made in chat, and every action has its own `/hrs:<command>`. Compound requests and specification documents are split into separately approved features, and filler wording in plans and documents is rejected.
 
 | Phase | Scope | |
 |---|---|---|

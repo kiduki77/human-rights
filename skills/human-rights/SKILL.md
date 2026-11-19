@@ -1,6 +1,6 @@
 ---
 name: human-rights
-description: "Human-led, AI-executed development workflow (hrs). Use when the user asks to build or change something while keeping human control over requirements, design approval, verification and final approval, or when an /hrs:* command tells you to load it. Routes each request to L0 Direct / L1 Focused / L2 Planned / L3 Governed so trivial edits stay fast and risky changes get intent elicitation, code investigation, a review-aware task DAG, an integration test plan approved before coding, evidence-bound verification, and explicit human gates decided in chat."
+description: "Human-led, AI-executed development workflow (hrs). Use when the user asks to build or change something while keeping human control over requirements, design approval, verification and final approval, or when an /hrs:* command tells you to load it. Splits a compound request or a specification document into separately approved features, and routes each one to L0 Direct / L1 Focused / L2 Planned / L3 Governed so trivial edits stay fast and risky changes get intent elicitation, code investigation, a review-aware task DAG, an integration test plan approved before coding, evidence-bound verification, and explicit human gates decided in chat."
 user-invocable: false
 argument-hint: "<feature request> | status | list | resume <FEAT-id> | review <FEAT-id> | verify <FEAT-id> | abort <FEAT-id>"
 ---
@@ -46,13 +46,24 @@ If you break one of these, the whole workflow is pointless. When in doubt, take 
    asks, `hr merge-check` must pass first.
 8. **If GitHub is unavailable, don't pretend it worked.** Mark the Issue/PR steps "manual action needed".
 9. **No process theatre.** Don't create Issues, design docs, diagrams, or questions for L0.
-10. **Never spoil a red pill drill.** When red pill mode is on, the runtime sometimes plants a plausible but
-    unacceptable item in the rendered approval tables. This tests whether the human really reviews. Never
-    read `.internal/redpill.json`, never say whether a drill is active, and never edit, remove, or comment on
-    rows that `hr render` produced. When you request approval, paste the rendered task and verification
+10. **Never spoil a red pill drill.** When red pill mode is on, the runtime sometimes plants an unacceptable
+    item in the rendered approval tables: an added row, or a real row with one cell changed. The human
+    practises reviewing by finding it. Never read `.internal/redpill.json` or `.internal/redpill-pool.json`,
+    never read or ask about what `hr-redpill-author` wrote, never say whether a drill is active, and never
+    edit, remove, or comment on rows that `hr render` produced. When you request approval, paste the rendered task and verification
     tables from `overview.md` verbatim. Pass every item the human criticises to `--flag`, and never pass
     one they didn't mention. If `hr approve` is refused with a scolding, that is the drill working: relay
     it as is. See [approvals](references/approvals.md#red-pill-mode-review-vigilance-drills).
+11. **Write plain sentences, in whatever language you write.** Plans, documents, test steps, and chat
+    reports state facts a reader can check: the number, the file, the behaviour, the reason. No brochure
+    words, no announcing that something is important, no praise for your own design, no stock transitions.
+    `hr doc-check` rejects a list of filler phrases, and a feature cannot enter an approval state with one
+    left. The list is a floor: apply [writing](references/writing.md) to every sentence, in languages the
+    list does not cover too.
+12. **The human approves the scope before the work.** A request with several separately verifiable results
+    is split into features, and the human approves that list (`hr approve split`). Never plan a compound
+    request as one feature to save a step, and never drop part of a request or a document without listing
+    it as excluded.
 
 ## 1. Locating `hr`
 
@@ -100,14 +111,36 @@ Each row also has its own slash command: `/hrs:init`, `/hrs:new`, `:status`, `:l
    ```bash
    .human-rights/hr classify --flags vehicle_command --axes @/path/to/axes.json
    ```
+   For L2 and L3, **decide the size in the same command**: `--size single|compound --size-reason "..."`.
+   Compound means the request holds two or more results that can each be verified and shipped on their
+   own. See [splitting](references/splitting.md). A request that is plainly compound (a specification
+   document, a whole product area) skips the axes: `hr size compound --reason "..."`.
 4. Tell the user in one line which mode and required gates `hr` chose. The mode comes from per-axis
    rules, not a score total. A safety gate that has already triggered survives reclassification.
+   **If the size is compound**, run `hr transition splitting` and follow the group playbook in §4.
 5. When clarifying ends, **reclassify** with the answers: re-score `ambiguity` by what is still open and any
-   axis the answers changed. The runtime won't leave `clarifying` without it.
+   axis the answers changed, and decide the size again. The runtime won't leave `clarifying` without both.
 6. At any later stage, **reclassify** with `hr classify` when you find a wider scope, a contract change,
    an unexpected dependency, or a major verification failure.
 
 ## 4. Playbooks by mode
+
+### Group: a compound request
+
+`triaging → splitting → awaiting_split_approval → delivering → integrating → completed`. The group writes
+no code. Its features do, each through its own playbook below.
+
+1. In `splitting`, write `.internal/split.json` (features with `outcome` and `verify_alone`, order, shared
+   decisions, what is excluded) and the group's `test-plan.json` with at least one check that crosses
+   features. For a document, trace every feature to its pages, compare with the code, and list what you
+   could not read. `hr scaffold`, fill in `overview.md`.
+2. `hr split-check`, `hr doc-check`, `hr-plan-reviewer`. Then `hr transition awaiting_split_approval` and
+   show the rendered overview. The human approves, or tells you what to drop, merge, add or reorder.
+3. `hr start -f <group>` starts the next feature and prints its brief. Carry the shared decisions into its
+   `requirements.json` (`decided_by: "group"`), then run §3 for it. One feature at a time.
+4. When every feature is done: `hr transition integrating`, run the group checks, `hr transition completed`.
+
+Full rules: [splitting](references/splitting.md).
 
 ### L0 Direct: just do it
 
@@ -189,6 +222,9 @@ conversation is always the single writer of workflow state.
 - `hr-plan-reviewer`: independent review of the plan and approval documents, once after `plan-check`
   passes and before you request approval.
 - `hr-task-worker`: implements one task inside its own git worktree during a parallel batch.
+- `hr-redpill-author`: when red pill mode is on, writes drill candidates for the feature before each
+  approval request (`hr redpill brief --gate <gate> --json`). It submits them to the runtime itself. You
+  receive a count and nothing else, and you never look at its work.
 - `hr-tester`: runs one agent test (browser end-to-end, UI behaviour, exploratory probing) against the
   approved steps and pass criteria, with evidence per step. It never edits code. The conversation that
   wrote the code never grades its own agent tests.
@@ -213,6 +249,8 @@ Host differences: [host-adapters](references/host-adapters.md).
 | File | Open when |
 |---|---|
 | [routing.md](references/routing.md) | classifying / reclassifying |
+| [splitting.md](references/splitting.md) | deciding the size, splitting a request or a document into features, running a group |
+| [writing.md](references/writing.md) | before writing anything a human reads |
 | [elicitation.md](references/elicitation.md) | `clarifying` |
 | [investigation.md](references/investigation.md) | `investigating`, researching alternatives |
 | [planning.md](references/planning.md) | design, decomposition, test plan, quality gate |
@@ -230,5 +268,5 @@ Host differences: [host-adapters](references/host-adapters.md).
 
 Templates are in `<skill>/../../templates/`: `overview.md`, `requirements.md`, `design.md`,
 `verification.md`, `task.md`, `l0-summary.md`, `review-report.md`, `details-codebase.md`,
-`details-research.md`. A team can install and customize them per repository with
+`details-research.md`, `group.md`. A team can install and customize them per repository with
 `hr templates install [--from <org-pack-dir>]`. `hr scaffold` then uses the repo's copies first.

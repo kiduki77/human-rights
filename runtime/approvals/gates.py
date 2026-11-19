@@ -65,6 +65,18 @@ POST_DESIGN = ("executing", "verifying_tasks", "integrating", "awaiting_final_ap
 
 def revalidate(feature: Feature, st: Dict[str, Any]) -> List[str]:
     notes: List[str] = []
+    if st.get("kind") == "group":
+        from runtime import groups
+
+        ss = groups.split_status(feature, st)
+        if ss["approval"] and not ss["valid"]:
+            _invalidate(feature, st, "split", "changed after approval: " + ", ".join(ss["changed"]))
+            notes.append("split approval invalidated: " + ", ".join(ss["changed"]))
+            if st["state"] in ("delivering", "integrating"):
+                _force(feature, st, "splitting", "split approval invalidated - review and re-approval required")
+                notes.append("state -> splitting")
+            feature.save_state(st)
+        return notes
     ds = design_status(feature, st)
     if ds["approval"] and not ds["valid"]:
         _invalidate(feature, st, "design", "changed after approval: " + ", ".join(ds["changed"]))

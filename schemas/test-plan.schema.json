@@ -134,6 +134,13 @@
           },
           "estimated_seconds": {
             "type": "number"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Group checks only: keys of the features this check exercises together."
           }
         },
         "additionalProperties": true,

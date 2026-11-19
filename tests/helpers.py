@@ -103,3 +103,5 @@ def install_example_plan(repo: Repo, fail_tests=()) -> Path:
         for p in (EXAMPLE / sub).glob("*.md"):
             shutil.copy(p, fdir / sub / p.name)
     return fdir
+
+ONE = ("--size", "single", "--size-reason", "one change, verified as a whole")
