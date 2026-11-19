@@ -8,7 +8,7 @@ DEFAULT_CONFIG_TEXT = """\
 version: 1
 
 routing:
-  design_gate_modes: [L3]
+  design_gate_modes: [L2, L3]
   final_gate_modes: [L3]
   l2_design_gate_min_arch: 2
 
@@ -37,7 +37,37 @@ docs:
   language: en
   l0_summary_max_lines: 15
   overview_max_lines: 120
+
+agents:
+  preset: balanced
+  investigator_model: sonnet
+  investigator_effort: medium
+  plan_reviewer_model: opus
+  plan_reviewer_effort: high
+  task_worker_model: sonnet
+  task_worker_effort: high
+  tester_model: sonnet
+  tester_effort: high
 """
+
+AGENT_ROLES = {
+    "investigator": "hr-investigator",
+    "plan_reviewer": "hr-plan-reviewer",
+    "task_worker": "hr-task-worker",
+    "tester": "hr-tester",
+}
+AGENT_PRESETS = {
+    "balanced": {"investigator": ("sonnet", "medium"), "plan_reviewer": ("opus", "high"),
+                 "task_worker": ("sonnet", "high"), "tester": ("sonnet", "high")},
+    "quality": {"investigator": ("opus", "medium"), "plan_reviewer": ("opus", "high"),
+                "task_worker": ("opus", "high"), "tester": ("opus", "high")},
+    "economy": {"investigator": ("haiku", ""), "plan_reviewer": ("sonnet", "high"),
+                "task_worker": ("sonnet", "medium"), "tester": ("sonnet", "medium")},
+    "inherit": {"investigator": ("inherit", ""), "plan_reviewer": ("inherit", ""),
+                "task_worker": ("inherit", ""), "tester": ("inherit", "")},
+}
+MODEL_ALIASES = ("sonnet", "opus", "haiku", "fable", "inherit")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 
 def _scalar(raw: str) -> Any:
@@ -119,3 +149,74 @@ def load_config(path: Path) -> Dict[str, Any]:
     except ImportError:
         data = parse_simple_yaml(text)
     return _deep_merge(DEFAULTS, data)
+
+
+def set_section(path: Path, section: str, values: Dict[str, Any]) -> None:
+    import re
+
+    from runtime.common import write_text_atomic
+
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+
+    def fmt(v: Any) -> str:
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, list):
+            return "[" + ", ".join(str(x) for x in v) + "]"
+        if v is None or v == "":
+            return '""'
+        return str(v)
+
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if re.match(rf"^{re.escape(section)}:\s*$", l)), None)
+    if start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(f"{section}:")
+        start = len(lines) - 1
+    end = start + 1
+    while end < len(lines) and (lines[end].startswith(" ") or not lines[end].strip()):
+        end += 1
+    body = lines[start + 1:end]
+    for key, val in values.items():
+        line = f"  {key}: {fmt(val)}"
+        idx = next((i for i, l in enumerate(body) if re.match(rf"^\s+{re.escape(key)}:", l)), None)
+        if idx is None:
+            while body and not body[-1].strip():
+                body.pop()
+            body.append(line)
+        else:
+            body[idx] = line
+    lines[start + 1:end] = body + ([""] if end < len(lines) else [])
+    write_text_atomic(path, "\n".join(lines).rstrip("\n") + "\n")
+
+
+def preset_values(name: str) -> Dict[str, Any]:
+    if name not in AGENT_PRESETS:
+        raise ValueError(f"unknown agent preset {name!r} (choose from: {', '.join(AGENT_PRESETS)})")
+    values: Dict[str, Any] = {"preset": name}
+    for role, (model, effort) in AGENT_PRESETS[name].items():
+        values[f"{role}_model"] = model
+        values[f"{role}_effort"] = effort
+    return values
+
+
+def agent_settings(cfg: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    section = cfg.get("agents") or {}
+    out = {}
+    for role, agent in AGENT_ROLES.items():
+        model = str(section.get(f"{role}_model") or "inherit").strip()
+        effort = str(section.get(f"{role}_effort") or "").strip()
+        problems = []
+        if model not in MODEL_ALIASES and not model.startswith("claude-"):
+            problems.append(f"unknown model {model!r}")
+        if effort and effort not in EFFORTS:
+            problems.append(f"unknown effort {effort!r}")
+        call = {}
+        if model != "inherit":
+            call["model"] = model
+        if effort:
+            call["effort"] = effort
+        out[role] = {"agent": agent, "model": model, "effort": effort or None, "agent_call": call,
+                     "problems": problems}
+    return out

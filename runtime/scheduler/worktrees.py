@@ -199,7 +199,7 @@ def brief(feature: Feature, st: Dict[str, Any], task_id: str) -> Dict[str, Any]:
         "",
         "Rules:",
         "  - Work only inside the worktree path above. Never touch the main checkout.",
-        "  - Never edit anything under .workflow/ and never run the hr command; the coordinator records state.",
+        "  - Never edit anything under .human-rights/ and never run the hr command; the coordinator records state.",
         "  - If the task needs a change outside the allowed paths or a contract change, stop and report it as a "
         "scope change instead of making it.",
         f"  - Commit your work on the branch with a message starting with '{feature.id} {task_id}'. Leave no uncommitted changes.",

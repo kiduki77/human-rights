@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Set
 
 TASK_STATUSES = ("planned", "in_progress", "implemented", "verified", "rework_required", "blocked", "cancelled")
-TEST_TYPES = ("unit", "component", "contract", "integration", "e2e", "regression", "security", "safety", "performance", "manual")
+TEST_TYPES = ("unit", "component", "contract", "integration", "e2e", "regression", "security", "safety", "performance",
+              "manual", "static")
+REGRESSION_SCOPES = ("targeted", "full")
 
 
 def _find_cycle(tasks: Dict[str, Dict[str, Any]]) -> List[str]:
@@ -76,11 +78,28 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
         if d.get("safety") and d.get("decided_by") != "user":
             hard.append(f"risky policy {d.get('id')} decided without the user (decided_by={d.get('decided_by')})")
 
+    from runtime.verification.evidence import runner_of
+
+    strict = mode in ("L2", "L3")
     for tid, t in tests.items():
-        if not t.get("command") and not t.get("procedure"):
-            hard.append(f"{tid}: has neither a command nor a procedure")
+        runner = runner_of(t)
+        steps = t.get("steps") or []
+        if runner == "command" and not t.get("command"):
+            hard.append(f"{tid}: runner is command but there is no command")
+        if runner != "command":
+            if not steps:
+                hard.append(f"{tid}: a test run by {'an agent' if runner == 'agent' else 'a human'} needs `steps`, "
+                            "each with what to do and the observable result that counts as a pass")
+            for i, s in enumerate(steps, 1):
+                if not isinstance(s, dict) or not str(s.get("do") or "").strip() or not str(s.get("expect") or "").strip():
+                    hard.append(f"{tid}: step {i} needs both `do` and `expect` (the pass criterion for that step)")
+        if runner == "human" and not str(t.get("human_reason") or "").strip():
+            hard.append(f"{tid}: run by a human without `human_reason` - say why a script or an agent cannot do it, "
+                        "or make it an agent test")
         if not t.get("pass_criteria"):
             hard.append(f"{tid}: missing pass_criteria")
+        if strict and t.get("level") == "integration" and t.get("required", True) and not t.get("estimated_seconds"):
+            warn.append(f"{tid}: no estimated_seconds - the reviewer cannot see what this plan costs to run")
         if t.get("type") not in TEST_TYPES:
             warn.append(f"{tid}: unknown type {t.get('type')!r}")
         if t.get("level") not in ("task", "integration"):
@@ -111,6 +130,9 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
             warn.append(f"{tid}: not linked to any requirement (check its user value / system responsibility)")
         if t.get("status", "planned") not in TASK_STATUSES:
             hard.append(f"{tid}: unknown status {t.get('status')!r}")
+        if strict and not isinstance(t.get("changes_flow"), bool):
+            hard.append(f"{tid}: set `changes_flow` to true or false (true: the task changes an interface or how "
+                        "components interact, and its document needs a diagram)")
         if t.get("risk") == "high" and t.get("human_review") != "required":
             warn.append(f"{tid}: high-risk task but human_review is not required")
 
@@ -123,8 +145,9 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
         rid = r.get("id")
         r_tasks = [tid for tid, t in tasks.items() if rid in t.get("requirement_ids", [])]
         r_tests = sorted(
-            {tid for tid, t in tests.items() if rid in t.get("requirement_ids", [])}
-            | {v for x in r_tasks for v in tasks[x].get("verification", [])}
+            tid for tid in ({tid for tid, t in tests.items() if rid in t.get("requirement_ids", [])}
+                            | {v for x in r_tasks for v in tasks[x].get("verification", [])})
+            if tests.get(tid, {}).get("type") != "static"
         )
         coverage[rid] = {"tasks": r_tasks, "tests": r_tests}
         if r.get("priority", "must") == "must":
@@ -141,6 +164,15 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
             hard.append(f"{mode}: no required feature-level integration test is planned")
         if mode == "L3" and not any(t.get("type") == "regression" for t in tests_list):
             warn.append("L3: no regression test is planned")
+        reg = plan.get("regression") or {}
+        if reg.get("scope") not in REGRESSION_SCOPES or not str(reg.get("rationale") or "").strip():
+            hard.append("test-plan.json needs `regression: {scope: targeted|full, rationale}` - which existing tests "
+                        "re-run, and why that is enough for what this change can break")
+        elif reg["scope"] == "targeted":
+            for t in tests_list:
+                if t.get("type") == "regression" and not t.get("covers"):
+                    warn.append(f"{t.get('id')}: regression scope is targeted but this test has no `covers` paths, "
+                                "so it re-runs after every code change")
 
     providers: Dict[str, List[str]] = {}
     for tid, t in tasks.items():

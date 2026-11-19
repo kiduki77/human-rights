@@ -27,8 +27,12 @@ Safety decisions confirmed by the user: deselected vehicles keep their mission (
 
 Not verified: nothing has run yet (design stage). TEST-013 is a human check with screen recording.
 
+## Decisions and assumptions
+<!-- hr:decisions:start -->
+<!-- hr:decisions:end -->
+
 ## Decision needed
-Approve the design, or request changes. Points to check: the two safety decisions above, and whether the integration plan (TEST-010 to TEST-013) is enough to call this done.
+Approve the design, point at anything that looks wrong, or request changes. Check the two safety decisions above, and whether the pass criteria in the verification table are enough to call this done.
 
 ---
 Details: [requirements](requirements.md) · [design](design.md) · [verification plan](verification.md) · [code investigation](details/codebase.md)

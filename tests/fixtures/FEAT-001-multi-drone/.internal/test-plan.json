@@ -81,7 +81,8 @@
       "command": "pytest tests/e2e/test_multi_vehicle_command.py --sitl 4",
       "environment": "sitl-4",
       "pass_criteria": "AC-001, AC-002 and AC-003 met",
-      "required": true
+      "required": true,
+      "estimated_seconds": 240
     },
     {
       "id": "TEST-011",
@@ -97,7 +98,8 @@
       "command": "pytest tests/e2e/test_link_failure_isolation.py --sitl 4",
       "environment": "sitl-4",
       "pass_criteria": "AC-004 met (vehicle B command latency within +50 ms)",
-      "required": true
+      "required": true,
+      "estimated_seconds": 180
     },
     {
       "id": "TEST-012",
@@ -113,7 +115,12 @@
       "command": "pytest tests/regression -m single_vehicle",
       "environment": "sitl-1",
       "pass_criteria": "all pass",
-      "required": true
+      "required": true,
+      "estimated_seconds": 120,
+      "covers": [
+        "src/link",
+        "src/command"
+      ]
     },
     {
       "id": "TEST-013",
@@ -131,7 +138,23 @@
       "environment": "sitl-2 + operator",
       "pass_criteria": "AC-006 met, link to the recording",
       "required": true,
-      "automation": "manual"
+      "estimated_seconds": 900,
+      "runner": "human",
+      "human_reason": "judging that a real operator never loses a mission needs an operator at the SITL rig",
+      "steps": [
+        {
+          "do": "Start two SITL vehicles A and B in AUTO missions and begin screen recording",
+          "expect": "both vehicles show AUTO and advancing waypoints"
+        },
+        {
+          "do": "Switch the selection A -> B -> A five times",
+          "expect": "vehicle A's mode stays AUTO and its waypoint index never goes backwards or pauses"
+        }
+      ]
     }
-  ]
+  ],
+  "regression": {
+    "scope": "targeted",
+    "rationale": "only src/link, src/command and the vehicle selector change; the single-vehicle regression suite covers every existing caller of the connection object"
+  }
 }

@@ -154,7 +154,7 @@ class ParallelFlowTest(unittest.TestCase):
         out = self.ok("schedule", "--start")
         self.assertIn("started: TASK-002, TASK-003", out)
         self.assertIn("brief for TASK-002", out)
-        self.assertIn("Never edit anything under .workflow/", out)
+        self.assertIn("Never edit anything under .human-rights/", out)
         self.assertIn("waiting TASK-004", out)
         w2, w3 = self.worktree("TASK-002"), self.worktree("TASK-003")
         self.assertTrue(w2.is_dir() and w3.is_dir())
@@ -273,7 +273,7 @@ class TemplatesMetricsTest(unittest.TestCase):
         r = self.r
         code, out = r.hr("templates", "install")
         self.assertIn("copied:", out)
-        local = r.root / ".workflow" / "templates" / "overview.md"
+        local = r.root / ".human-rights" / "templates" / "overview.md"
         self.assertTrue(local.exists())
         local.write_text(local.read_text(encoding="utf-8") + "\n<!-- ACME review checklist -->\n", encoding="utf-8")
         code, out = r.hr("templates", "status")
@@ -294,7 +294,11 @@ class TemplatesMetricsTest(unittest.TestCase):
         self.assertIn("Route commands to the selected vehicle", t2)
         self.assertIn("`src/command/router.py`", t2)
         self.assertIn("AC-T2-2", t2)
-        self.assertNotIn("[FILL", t2.split("## Result")[0])
+        self.assertIn("```mermaid", t2, "a task that changes a flow gets a diagram to fill in")
+        self.assertNotIn("flow:start", t2)
+        t3 = (r.feature_dir() / "tasks" / "TASK-003.md").read_text(encoding="utf-8")
+        self.assertNotIn("mermaid", t3)
+        self.assertNotIn("[FILL", t3.split("## Result")[0])
         code, out = r.hr("scaffold", "overview")
         self.assertIn("kept existing: overview.md", out)
 

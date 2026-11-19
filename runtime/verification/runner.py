@@ -54,8 +54,16 @@ def run_jobs(feature: Feature, jobs: List[Dict[str, Any]], timeout: int, environ
         if job["test"].get("command"):
             runnable.append(job)
         else:
-            out.append({"test_id": job["test"]["id"], "status": "manual_required",
-                        "note": "no command: a human records the result with record-manual"})
+            from runtime.verification.evidence import runner_of
+
+            if runner_of(job["test"]) == "agent":
+                out.append({"test_id": job["test"]["id"], "status": "agent_required",
+                            "note": "run by an agent: get the brief with `hr test-brief`, have hr-tester perform "
+                                    "it, then `hr record-agent`"})
+            else:
+                out.append({"test_id": job["test"]["id"], "status": "manual_required",
+                            "note": "run by a human, after every script and agent test passes: ask them to "
+                                    "report the result in chat, then record it with record-manual --quote"})
     proxies = [dict(j["test"], _job=j) for j in runnable]
     for rnd in test_batches(proxies, max_parallel):
         round_jobs = [p["_job"] for p in rnd]
@@ -116,6 +124,67 @@ def _record_result(feature: Feature, res: Dict[str, Any], environment: str, max_
     return run
 
 
+def evidence_dir(feature: Feature, test_id: str) -> Path:
+    return feature.dir / "evidence" / test_id
+
+
+def record_agent(feature: Feature, test: Dict[str, Any], report: Dict[str, Any], max_retries: int) -> Dict[str, Any]:
+    from runtime.verification import failures as fail_mod
+
+    steps = test.get("steps") or []
+    got = report.get("steps")
+    if not isinstance(got, list) or len(got) != len(steps):
+        raise HRError(f"{test['id']}: the report must have one result per planned step ({len(steps)} steps)")
+    base = evidence_dir(feature, test["id"]).resolve()
+    results = []
+    for i, (plan_step, res) in enumerate(zip(steps, got), 1):
+        status = res.get("status")
+        if status not in ("passed", "failed"):
+            raise HRError(f"{test['id']} step {i}: status must be passed or failed")
+        observed = str(res.get("observed") or "").strip()
+        if not observed:
+            raise HRError(f"{test['id']} step {i}: `observed` is required (what was actually seen)")
+        ev = str(res.get("evidence") or "").strip()
+        sha = None
+        if ev:
+            p = (feature.ws.root / ev).resolve() if not Path(ev).is_absolute() else Path(ev).resolve()
+            if base not in p.parents or not p.is_file() or p.stat().st_size == 0:
+                raise HRError(f"{test['id']} step {i}: evidence must be a non-empty file under "
+                              f"{base.relative_to(feature.ws.root).as_posix()}/ (got {ev})")
+            sha = sha256_bytes(p.read_bytes())
+            ev = p.relative_to(feature.ws.root).as_posix()
+        elif status == "passed":
+            raise HRError(f"{test['id']} step {i}: a passed step needs an evidence file (screenshot, recording, log)")
+        results.append({"n": i, "do": plan_step.get("do"), "expect": plan_step.get("expect"), "status": status,
+                        "observed": observed, "evidence": ev or None, "evidence_sha256": sha})
+    passed = all(r["status"] == "passed" for r in results)
+    fp = fingerprint(feature.ws.root)
+    run = {
+        "run_id": _next_id("RUN", feature.test_results().get("runs", [])),
+        "test_id": test["id"],
+        "status": "agent_passed" if passed else "agent_failed",
+        "commit_sha": fp["commit_sha"],
+        "code_tree": fp["code_tree"],
+        "dirty": fp["dirty"],
+        "worktree_hash": fp["worktree_hash"],
+        "environment": test.get("environment") or "agent",
+        "recorded_by": f"agent:{report.get('by') or 'hr-tester'}",
+        "steps": results,
+        "findings": [str(x) for x in (report.get("findings") or [])],
+        "evidence": base.relative_to(feature.ws.root).as_posix(),
+        "started_at": report.get("started_at") or now(),
+        "finished_at": now(),
+    }
+    _record(feature, run)
+    if run["dirty"]:
+        return run
+    if passed:
+        fail_mod.on_passed(feature, test, run)
+    else:
+        run["failure"] = fail_mod.on_failed(feature, test, run, max_retries)
+    return run
+
+
 def run_tests(feature: Feature, tests: List[Dict[str, Any]], timeout: int, environment: str,
               max_retries: int, cwd: Optional[Path] = None, worktree_task: Optional[str] = None,
               max_parallel: int = 1) -> List[Dict[str, Any]]:
@@ -124,7 +193,8 @@ def run_tests(feature: Feature, tests: List[Dict[str, Any]], timeout: int, envir
 
 
 def record_manual(feature: Feature, test: Dict[str, Any], passed: bool, by: str, note: str,
-                  evidence: Optional[str], environment: str, max_retries: int) -> Dict[str, Any]:
+                  evidence: Optional[str], environment: str, max_retries: int,
+                  proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from runtime.verification import failures as fail_mod
 
     if not by:
@@ -144,6 +214,7 @@ def record_manual(feature: Feature, test: Dict[str, Any], passed: bool, by: str,
         "evidence": evidence,
         "started_at": now(),
         "finished_at": now(),
+        **(proof or {}),
     }
     _record(feature, run)
     if run["dirty"]:

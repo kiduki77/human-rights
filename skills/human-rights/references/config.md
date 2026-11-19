@@ -1,11 +1,11 @@
-# `.workflow/config.yaml`: repository policy
+# `.human-rights/config.yaml`: repository policy
 
 Humans edit this file. The agent never loosens it: it never removes gates, raises retry limits, turns
 on auto-merge, widens parallelism, or turns red pill mode off. To change policy, ask the human.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `routing.design_gate_modes` | `[L3]` | Modes that always require design approval, on top of the gates the router forces |
+| `routing.design_gate_modes` | `[L2, L3]` | Modes that always require design approval, on top of the gates the router forces |
 | `routing.final_gate_modes` | `[L3]` | Modes that always require final approval |
 | `routing.l2_design_gate_min_arch` | `2` | L2 requires design approval when the architecture impact is at least this score |
 | `github.enabled` | `auto` | `auto`: use GitHub when `gh auth status` succeeds. `false`: never. `true`: required |
@@ -21,8 +21,22 @@ on auto-merge, widens parallelism, or turns red pill mode off. To change policy,
 | `redpill.one_in` | `10` | Drill frequency: about 1 in N approval requests |
 | `redpill.gates` | `[design, final]` | Which approval gates can be drilled |
 | `redpill.language` | `""` | Language of the scolding (`en`, `ko`); empty follows `docs.language` |
-| `docs.language` | `en` | Language of the human-facing reports (the templates are English; the structural checks are language-agnostic) |
+| `docs.language` | `en` | Language of everything humans read under `.human-rights/`: templates (`templates/<lang>/`), rendered tables, red pill plants. `en` or `ko`. The structural checks are language-agnostic |
 | `docs.l0_summary_max_lines` | `15` | Length budget for an L0 `overview.md` |
 | `docs.overview_max_lines` | `120` | Length budget for an L2/L3 `overview.md` |
+
+| `agents.preset` | `balanced` | Which preset the values below came from (`hr init --agents <preset>`): `balanced`, `quality`, `economy`, `inherit` |
+| `agents.<role>_model` | see below | `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or `inherit` (the session's model). Roles: `investigator`, `plan_reviewer`, `task_worker`, `tester` |
+| `agents.<role>_effort` | see below | `low`, `medium`, `high`, `xhigh`, `max`, or empty for the model's default |
+
+| Preset | `hr-investigator` | `hr-plan-reviewer` | `hr-task-worker` | `hr-tester` |
+|---|---|---|---|---|
+| `balanced` (default) | sonnet / medium | opus / high | sonnet / high | sonnet / high |
+| `quality` | opus / medium | opus / high | opus / high | opus / high |
+| `economy` | haiku / default | sonnet / high | sonnet / medium | sonnet / medium |
+| `inherit` | session model | session model | session model | session model |
+
+The main conversation (the planner and coordinator) always runs on the session's own model; pick it with
+`/model`. `hr agents` shows what each sub-agent will run with.
 
 The file supports YAML comments if your team wants to annotate its own policy. The runtime ignores them.

@@ -23,6 +23,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt_capture.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt_capture.py\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

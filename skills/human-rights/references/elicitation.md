@@ -56,3 +56,8 @@ Move on to `investigating` / `planning` only when all of these hold:
 - [ ] Core safety-related policies are settled by user decision. Otherwise, **do not implement**.
 
 Don't end elicitation because of a question count or your own confidence score.
+
+When the gate passes, re-score the axes with the answers (`ambiguity` by what is still open, plus any axis
+the answers narrowed or widened) and run `hr classify` before `hr transition`. Tell the user the new mode and
+gates in one line. A drop from L3 to L2 can remove the design and final gates unless a flag or
+`routing.*_gate_modes` keeps them.

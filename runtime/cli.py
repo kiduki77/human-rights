@@ -10,6 +10,7 @@ from runtime.common import GateError, HRError, find_repo_root, fingerprint, now
 from runtime.state.store import Feature, Workspace, new_state
 
 HUMAN_ONLY = ("approve", "record-manual", "unblock")
+GATE_STATES = {"design": "awaiting_design_approval", "final": "awaiting_final_approval"}
 
 
 def _print_json(obj: Any) -> None:
@@ -46,11 +47,46 @@ def _fmt_counts(c: Dict[str, int]) -> str:
 
 
 def cmd_init(ws: Workspace, args) -> int:
+    from runtime.config import preset_values, set_section
+
+    if args.language and args.language not in ("en", "ko"):
+        raise HRError("--language takes en or ko")
+    try:
+        agent_values = preset_values(args.agents) if args.agents else None
+    except ValueError as exc:
+        raise HRError(str(exc))
     created = ws.init()
+    if args.language:
+        set_section(ws.config_path, "docs", {"language": args.language})
+    if agent_values:
+        set_section(ws.config_path, "agents", agent_values)
     print(f"human-rights workspace: {ws.wf}")
     for c in created:
         print(f"  created: {c}")
-    print("Human-only commands run as `! .workflow/hr <command>` (approve / record-manual / unblock).")
+    print(f"report language: {(ws.config().get('docs') or {}).get('language', 'en')}")
+    _print_agents(ws)
+    print("Human decisions (approve / flag / record-manual / unblock / redpill) are made in chat; the agent records them with `--quote`.")
+    return 0
+
+
+def _print_agents(ws: Workspace) -> None:
+    from runtime.config import agent_settings
+
+    preset = (ws.config().get("agents") or {}).get("preset") or "custom"
+    print(f"sub-agents (preset: {preset}):")
+    for role, a in agent_settings(ws.config()).items():
+        extra = f"  [!] {'; '.join(a['problems'])}" if a["problems"] else ""
+        print(f"  {a['agent']:<17} model {a['model']:<8} effort {a['effort'] or 'default'}{extra}")
+
+
+def cmd_agents(ws: Workspace, args) -> int:
+    from runtime.config import agent_settings
+
+    ws.require_init()
+    if args.json:
+        _print_json(agent_settings(ws.config()))
+        return 0
+    _print_agents(ws)
     return 0
 
 
@@ -372,7 +408,8 @@ def cmd_verify(ws: Workspace, args) -> int:
                                 worktree_task=args.task if root_t != ws.root else None, max_parallel=parallel)
     failed = 0
     for r in runs:
-        mark = {"passed": "PASS", "failed": "FAIL", "manual_required": "MANUAL"}.get(r["status"], r["status"])
+        mark = {"passed": "PASS", "failed": "FAIL", "manual_required": "HUMAN",
+                "agent_required": "AGENT"}.get(r["status"], r["status"])
         line = f"[{mark}] {r['test_id']}" + (f" (worktree {r['worktree_task']})" if r.get("worktree_task") else "")
         if r.get("concurrency", 1) > 1:
             line += f" [parallel x{r['concurrency']}]"
@@ -395,15 +432,108 @@ def cmd_verify(ws: Workspace, args) -> int:
 def cmd_record_manual(ws: Workspace, args) -> int:
     from runtime.verification import runner
 
+    from runtime import human
+
     f = _feature(ws, args)
     test = next((t for t in f.test_plan().get("tests", []) if t["id"] == args.test_id), None)
     if test is None:
         raise HRError(f"no such test: {args.test_id}")
+    who = human.resolve(ws, args.by, args.quote)
     cfg = ws.config().get("verification", {})
-    run = runner.record_manual(f, test, args.result == "passed", args.by, args.note or "", args.evidence, args.env,
-                               int(cfg.get("max_same_failure_retries", 3)))
-    print(f"{run['run_id']} {test['id']} = {run['status']} (reviewer: {args.by})")
+    if args.result == "passed":
+        pending = _machine_tests_pending(f)
+        if pending:
+            raise GateError("machine tests come first: a human result is recorded only after every script and "
+                            "agent test passes on the current code. Still open: " + ", ".join(pending))
+    run = runner.record_manual(f, test, args.result == "passed", who["by"], args.note or "", args.evidence, args.env,
+                               int(cfg.get("max_same_failure_retries", 3)), human.proof_fields(who))
+    print(f"{run['run_id']} {test['id']} = {run['status']} (reviewer: {who['by']}, via {who['via']})")
     return 0
+
+
+def _machine_tests_pending(f: Feature) -> List[str]:
+    from runtime.verification import evidence
+
+    st = f.state()
+    lenient = st.get("mode") in ("L0", "L1")
+    tests = [t for t in evidence.required_tests(f.test_plan()) if evidence.runner_of(t) != "human"]
+    summ = evidence.summarize(f.test_plan(), f.test_results(), fingerprint(f.ws.root), lenient=lenient, tests=tests)
+    return [f"{r['test']['id']}={r['status']}" for r in summ["rows"] if not evidence.is_pass(r["status"], lenient)]
+
+
+def _agent_test(f: Feature, test_id: str) -> Dict[str, Any]:
+    from runtime.verification import evidence
+
+    test = next((t for t in f.test_plan().get("tests", []) if t["id"] == test_id), None)
+    if test is None:
+        raise HRError(f"no such test: {test_id}")
+    if evidence.runner_of(test) != "agent":
+        raise HRError(f"{test_id} is run by {evidence.runner_of(test)}, not by an agent")
+    return test
+
+
+def cmd_test_brief(ws: Workspace, args) -> int:
+    from runtime.config import agent_settings
+    from runtime.verification import runner
+
+    f = _feature(ws, args)
+    test = _agent_test(f, args.test_id)
+    ev_dir = runner.evidence_dir(f, test["id"])
+    ev_dir.mkdir(parents=True, exist_ok=True)
+    rel = ev_dir.relative_to(ws.root).as_posix()
+    steps = "\n".join(f"  {i}. DO: {s.get('do')}\n     PASS ONLY IF: {s.get('expect')}"
+                      for i, s in enumerate(test.get("steps") or [], 1))
+    prompt = (
+        f"You are hr-tester. Run {test['id']} \"{test.get('title', '')}\" for feature {f.id}.\n"
+        f"Repository root: {ws.root}\n"
+        f"Environment: {test.get('environment') or 'not specified'}\n"
+        f"Overall pass criteria (approved by the human, do not reinterpret): {test.get('pass_criteria')}\n\n"
+        f"Steps, in order. Each step passes only if its stated result is observed exactly:\n{steps}\n\n"
+        f"For every step save one evidence file (screenshot, recording, or captured output) under {rel}/ "
+        f"named step-<n>.<ext>, taken at the moment the result is visible.\n"
+        f"Then write {rel}/report.json:\n"
+        '  {"by": "hr-tester", "steps": [{"status": "passed|failed", "observed": "<what you actually saw>", '
+        '"evidence": "<path of the evidence file>"}, ...], "findings": ["<anything wrong you noticed outside the steps>"]}\n'
+        "One entry per step, same order. Report what you saw, not what should have happened. If a step cannot be "
+        "performed, mark it failed and say why. Do not edit code, do not fix anything, do not run hr."
+    )
+    out = {"test_id": test["id"], "evidence_dir": rel, "report": f"{rel}/report.json", "prompt": prompt,
+           "agent": {"subagent_type": "hr-tester", **agent_settings(ws.config())["tester"]["agent_call"]}}
+    if args.json:
+        _print_json(out)
+    else:
+        print(prompt)
+    return 0
+
+
+def cmd_record_agent(ws: Workspace, args) -> int:
+    from runtime.verification import runner
+
+    f = _feature(ws, args)
+    test = _agent_test(f, args.test_id)
+    report_path = Path(args.report) if args.report else runner.evidence_dir(f, test["id"]) / "report.json"
+    if not report_path.is_absolute():
+        report_path = ws.root / report_path
+    if not report_path.is_file():
+        raise HRError(f"no report at {report_path}")
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HRError(f"report is not valid JSON: {exc}")
+    retries = int(ws.config().get("verification", {}).get("max_same_failure_retries", 3))
+    run = runner.record_agent(f, test, report, retries)
+    for s in run["steps"]:
+        print(f"  step {s['n']}: {s['status']}  expect: {s['expect']}  observed: {s['observed']}")
+    for x in run["findings"]:
+        print(f"  finding: {x}")
+    print(f"{run['run_id']} {test['id']} = {run['status']} (evidence: {run['evidence']})")
+    if run.get("dirty"):
+        print("  ran on uncommitted changes: counts for L0/L1 completion only")
+    if run.get("failure"):
+        fl = run["failure"]
+        print(f"  failure record {fl['id']} ({fl['retry_count']} in a row)"
+              + (" - escalated to a human, state is now blocked" if fl["escalated"] else ""))
+    return 0 if run["status"] == "agent_passed" else 1
 
 
 def cmd_failures(ws: Workspace, args) -> int:
@@ -428,24 +558,56 @@ def cmd_failures(ws: Workspace, args) -> int:
     return 0
 
 
+def _gate_since(f: Feature, args) -> Optional[str]:
+    from runtime import human
+
+    if args.quote is None:
+        return None
+    st = f.state()["state"]
+    return human.entered_at(f, st) if st in GATE_STATES.values() or st == "blocked" else None
+
+
+def _apply_flags(f: Feature, items: List[str], by: str, note: str, proof: Dict[str, Any]) -> List[str]:
+    from runtime import redpill
+
+    concerns = []
+    for item in items:
+        res = redpill.flag(f, item, by, note, proof)
+        print(res["message"])
+        if not res["caught"]:
+            concerns.append(item.strip().upper())
+    return concerns
+
+
 def cmd_approve(ws: Workspace, args) -> int:
+    from runtime import human
     from runtime.approvals import gates
     from runtime.state import machine
 
     f = _feature(ws, args)
     _revalidate(f)
+    expected = GATE_STATES[args.gate]
+    current = f.state()["state"]
+    if current != expected:
+        raise GateError(f"{args.gate} approval is only possible in {expected} (current: {current})")
+    who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
+    by, proof = who["by"], human.proof_fields(who)
+    concerns = _apply_flags(f, args.flag or [], by, args.note or "", proof)
+    if concerns:
+        raise GateError("not approved: the human pointed out " + ", ".join(concerns) + ". Address each point "
+                        "(change the plan and resubmit, or explain why it is fine) and ask for approval again.")
     st = f.state()
     if args.gate == "design":
-        rec = gates.approve_design(f, st, args.by, args.scope or "", args.note or "")
+        rec = gates.approve_design(f, st, by, args.scope or "", args.note or "", proof)
         f.save_state(st)
-        print(f"design approval recorded: {args.by} | bundle {rec['bundle_hash'][:12]}")
-        machine.transition(f, "executing", "design approved", actor=f"human:{args.by}")
+        print(f"design approval recorded: {by} via {who['via']} | bundle {rec['bundle_hash'][:12]}")
+        machine.transition(f, "executing", "design approved", actor=f"human:{by}")
         print("state -> executing")
     else:
-        rec = gates.approve_final(f, st, args.by, args.risks or "", args.note or "")
+        rec = gates.approve_final(f, st, by, args.risks or "", args.note or "", proof)
         f.save_state(st)
-        print(f"final approval recorded: {args.by} | commit {rec['commit_sha'][:10]}")
-        machine.transition(f, "ready_to_merge", "final approval", actor=f"human:{args.by}")
+        print(f"final approval recorded: {by} via {who['via']} | commit {rec['commit_sha'][:10]}")
+        machine.transition(f, "ready_to_merge", "final approval", actor=f"human:{by}")
         print("state -> ready_to_merge (merging follows repository rules and `hr merge-check`)")
     return 0
 
@@ -458,8 +620,11 @@ def cmd_reject(ws: Workspace, args) -> int:
     expected = "awaiting_design_approval" if args.gate == "design" else "awaiting_final_approval"
     if st["state"] != expected:
         raise GateError(f"a {args.gate} change request is recorded only in {expected} (current: {st['state']})")
+    from runtime import human
+
     target = args.to or ("clarifying" if args.gate == "design" else "rework_required")
-    f.emit("approval_rejected", gate=args.gate, reason=args.reason, by=args.by or "user (chat)")
+    proof = human.proof_fields(human.resolve(ws, args.by or "user (chat)", args.quote, _gate_since(f, args)))
+    f.emit("approval_rejected", gate=args.gate, reason=args.reason, by=args.by or "user (chat)", **proof)
     machine.transition(f, target, f"{args.gate} change requested: {args.reason}")
     print(f"change request recorded | state -> {target}")
     return 0
@@ -468,8 +633,11 @@ def cmd_reject(ws: Workspace, args) -> int:
 def cmd_unblock(ws: Workspace, args) -> int:
     from runtime.state import machine
 
+    from runtime import human
+
     f = _feature(ws, args)
-    st = machine.unblock(f, args.by, args.note or "")
+    who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
+    st = machine.unblock(f, who["by"], args.note or "", human.proof_fields(who))
     print(f"unblocked -> {st['state']}")
     return 0
 
@@ -621,7 +789,11 @@ def cmd_schedule(ws: Workspace, args) -> int:
                 st.setdefault("parallel", {}).setdefault("batches", []).append({"tasks": started, "at": now()})
                 f.save_state(st)
                 f.emit("batch_scheduled", tasks=started, deferred=sorted(plan["deferred"]))
-        briefs = [worktrees.brief(f, st, tid) for tid in started]
+        from runtime.config import agent_settings
+
+        call = agent_settings(ws.config())["task_worker"]["agent_call"]
+        briefs = [{**worktrees.brief(f, st, tid), "agent": {"subagent_type": "hr-task-worker", **call}}
+                  for tid in started]
     if args.json:
         _print_json({**plan, "briefs": briefs})
         return 0
@@ -757,15 +929,23 @@ def cmd_scaffold(ws: Workspace, args) -> int:
 def cmd_flag(ws: Workspace, args) -> int:
     from runtime import redpill
 
+    from runtime import human
+
     f = _feature(ws, args)
-    print(redpill.flag(f, args.item, args.by, args.note or ""))
+    who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
+    for item in args.items:
+        print(redpill.flag(f, item, who["by"], args.note or "", human.proof_fields(who))["message"])
     return 0
 
 
 def cmd_redpill(ws: Workspace, args) -> int:
     from runtime import redpill
 
+    from runtime import human
+
     ws.require_init()
+    if args.redpill_cmd in ("on", "off") and args.quote is not None:
+        human.verify(ws, args.quote)
     if args.redpill_cmd == "on":
         values = {"enabled": True}
         if args.one_in is not None:
@@ -783,7 +963,9 @@ def cmd_redpill(ws: Workspace, args) -> int:
     elif args.redpill_cmd == "off":
         redpill.set_config(ws, {"enabled": False})
     elif args.redpill_cmd == "reveal":
-        print(redpill.reveal(_feature(ws, args), args.by))
+        f = _feature(ws, args)
+        who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
+        print(redpill.reveal(f, who["by"], human.proof_fields(who)))
         return 0
     s = redpill.settings(ws)
     print(f"Red pill mode: {'on' if s['enabled'] else 'off'}  |  about 1 in {s['one_in']} approval requests  |  "
@@ -817,7 +999,11 @@ def build_parser() -> argparse.ArgumentParser:
         sp.set_defaults(fn=fn)
         return sp
 
-    add("init", cmd_init, "initialize .workflow/", feature=False)
+    sp = add("init", cmd_init, "initialize .human-rights/", feature=False)
+    sp.add_argument("--language", help="report language for human-facing documents: en or ko")
+    sp.add_argument("--agents", help="sub-agent model preset: balanced, quality, economy, inherit")
+    sp = add("agents", cmd_agents, "model and effort each sub-agent runs with (from config.yaml agents:)", feature=False)
+    sp.add_argument("--json", action="store_true")
     sp = add("new", cmd_new, "create a feature (-> triaging)", feature=False)
     sp.add_argument("title")
     sp.add_argument("--slug")
@@ -851,13 +1037,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--type", default="regression")
     sp.add_argument("--env", default="local")
     sp.add_argument("--timeout", type=int)
-    sp = add("record-manual", cmd_record_manual, "[human only] record a manual test result")
+    sp = add("record-manual", cmd_record_manual, "[human decision: --by, or --quote from chat] record a manual test result")
     sp.add_argument("test_id")
     sp.add_argument("result", choices=("passed", "failed"))
-    sp.add_argument("--by", required=True)
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--note")
     sp.add_argument("--evidence")
     sp.add_argument("--env", default="manual")
+    sp = add("test-brief", cmd_test_brief, "work order for hr-tester to run an agent test (steps, pass criteria, evidence)")
+    sp.add_argument("test_id")
+    sp.add_argument("--json", action="store_true")
+    sp = add("record-agent", cmd_record_agent, "record an agent-run test from the tester's report (per-step evidence required)")
+    sp.add_argument("test_id")
+    sp.add_argument("--report", help="report.json path (default: the test's evidence directory)")
     sp = add("failures", cmd_failures, "list / classify failure records")
     sp.add_argument("--classify", metavar="FAIL-ID")
     sp.add_argument("--cause-type", default="unclassified")
@@ -866,9 +1059,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--fix-task")
     sp.add_argument("--retest")
     sp.add_argument("--json", action="store_true")
-    sp = add("approve", cmd_approve, "[human only] design / final approval")
+    sp = add("approve", cmd_approve, "[human decision: --by, or --quote from chat] design / final approval")
     sp.add_argument("gate", choices=("design", "final"))
-    sp.add_argument("--by", required=True)
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
+    sp.add_argument("--flag", nargs="+", metavar="ID", help="items the human pointed out in that message")
     sp.add_argument("--scope")
     sp.add_argument("--note")
     sp.add_argument("--risks", help="residual risks accepted with the final approval")
@@ -877,8 +1072,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--reason", required=True)
     sp.add_argument("--to", choices=("clarifying", "planning", "investigating", "rework_required"))
     sp.add_argument("--by")
-    sp = add("unblock", cmd_unblock, "[human only] release an escalation")
-    sp.add_argument("--by", required=True)
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
+    sp = add("unblock", cmd_unblock, "[human decision: --by, or --quote from chat] release an escalation")
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--note")
     sp = add("scope-change", cmd_scope_change, "change outside the task boundary found -> scope change request")
     sp.add_argument("--task")
@@ -920,23 +1117,25 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("scaffold", cmd_scaffold, "create feature docs from templates (repo templates first)")
     sp.add_argument("docs", nargs="*", help="overview requirements design verification codebase research tasks l0-summary review-report")
     sp.add_argument("--overwrite", action="store_true")
-    sp = add("flag", cmd_flag, "[human only] point at an item in the approval material you would not approve")
-    sp.add_argument("item")
-    sp.add_argument("--by", required=True)
+    sp = add("flag", cmd_flag, "[human decision: --by, or --quote from chat] point at an item in the approval material you would not approve")
+    sp.add_argument("items", nargs="+", metavar="ID")
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--note")
-    sp = add("redpill", cmd_redpill, "red pill mode: random review-vigilance drills (on/off/reveal are human only)")
+    sp = add("redpill", cmd_redpill, "red pill mode: random review-vigilance drills (on/off/reveal are human decisions)")
     sp.add_argument("redpill_cmd", choices=("on", "off", "status", "reveal"))
     sp.add_argument("--one-in", type=int, help="plant a drill in about 1 of N approval requests")
     sp.add_argument("--gates", help="design, final, or design,final")
     sp.add_argument("--language", help="en or ko (default: docs.language)")
     sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     add("merge-check", cmd_merge_check, "can this be merged? (approved code, live GitHub state)")
     sp = add("abort", cmd_abort, "cancel (records and branch are kept)")
     sp.add_argument("--reason")
     return p
 
 
-READ_ONLY = {"init", "list", "doc-check", "log"}
+READ_ONLY = {"init", "list", "doc-check", "log", "agents"}
 
 
 def main(argv: Optional[List[str]] = None) -> int:

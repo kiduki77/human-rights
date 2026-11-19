@@ -7,6 +7,18 @@
 - AC-T2-1: commands are refused when no vehicle is selected
 - AC-T2-2: a target switch during a pending ACK applies after the ACK or timeout
 
+## Flow
+```mermaid
+sequenceDiagram
+  participant UI
+  participant Target as CommandTarget
+  participant S as Session
+  UI->>Target: select(B) while a command awaits ACK
+  Target-->>UI: queued
+  S-->>Target: ACK (or 3 s timeout)
+  Target->>Target: selection becomes B
+```
+
 ## Change boundary
 `src/command/router.py`. Anything outside goes back through `hr scope-change`.
 

@@ -2,15 +2,42 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-PASS = ("passed", "manual_passed")
-FAIL = ("failed", "error", "manual_failed")
+PASS = ("passed", "manual_passed", "agent_passed")
+FAIL = ("failed", "error", "manual_failed", "agent_failed")
+RUNNERS = ("command", "agent", "human")
+
+
+def runner_of(test: Dict[str, Any]) -> str:
+    if test.get("runner") in RUNNERS:
+        return test["runner"]
+    if test.get("command"):
+        return "command"
+    return "agent" if test.get("automation") == "agent" else "human"
+
+
+def _carried(test: Optional[Dict[str, Any]], runs: List[Dict[str, Any]], fp: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from pathlib import Path
+
+    from runtime.common import changed_files_since, path_matches
+
+    covers = (test or {}).get("covers") or []
+    if not covers or not fp.get("root") or fp.get("dirty"):
+        return None
+    latest = runs[-1]
+    if latest.get("dirty") or latest.get("status") not in PASS:
+        return None
+    changed = changed_files_since(Path(fp["root"]), latest.get("commit_sha"), fp.get("commit_sha"))
+    if changed is None or any(path_matches(f, covers) for f in changed):
+        return None
+    return latest
 
 
 def runs_for(results: Dict[str, Any], test_id: str) -> List[Dict[str, Any]]:
     return [r for r in results.get("runs", []) if r.get("test_id") == test_id]
 
 
-def status_at(results: Dict[str, Any], test_id: str, fp: Dict[str, Any]) -> Dict[str, Any]:
+def status_at(results: Dict[str, Any], test_id: str, fp: Dict[str, Any],
+              test: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     runs = runs_for(results, test_id)
     if not runs:
         return {"status": "not_run", "run": None}
@@ -26,6 +53,9 @@ def status_at(results: Dict[str, Any], test_id: str, fp: Dict[str, Any]) -> Dict
         same = [r for r in runs if not r.get("dirty") and r.get("code_tree") == fp.get("code_tree")]
         suffix = ""
     if not same:
+        kept = _carried(test, runs, fp)
+        if kept:
+            return {"status": "passed", "run": kept, "carried": True}
         return {"status": "stale", "run": runs[-1]}
     latest = same[-1]
     if latest.get("status") in PASS:
@@ -61,7 +91,7 @@ def summarize(plan: Dict[str, Any], results: Dict[str, Any], fp: Dict[str, Any],
               tests: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     rows = []
     for t in (tests if tests is not None else required_tests(plan, level=level)):
-        st = status_at(results, t["id"], fp)
+        st = status_at(results, t["id"], fp, t)
         rows.append({"test": t, **st})
     counts: Dict[str, int] = {}
     for r in rows:

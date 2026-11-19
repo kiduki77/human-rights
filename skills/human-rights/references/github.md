@@ -1,6 +1,6 @@
 # GitHub: Issues, PRs, CI, merging
 
-GitHub is the source of truth for Issue, PR, and CI state. `.workflow` stores only ids, links, and the
+GitHub is the source of truth for Issue, PR, and CI state. `.human-rights` stores only ids, links, and the
 last sync time. Never decide something is done from a local cache.
 
 ## Availability

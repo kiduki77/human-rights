@@ -32,7 +32,8 @@ exact `scope.paths`, the `contracts` they provide and consume, and the `resource
    the integration branch HEAD, and lives in a sibling `<repo>.hr-worktrees/` directory. The tasks become
    `in_progress`, and a brief is printed for each. The main checkout must have no uncommitted code changes.
 3. Spawn one `hr-task-worker` sub-agent per task **in the same message** so they run concurrently. Pass
-   each its brief verbatim (`hr worktree brief <TASK> --json` gives the `prompt` field again). Without
+   each its brief verbatim (`hr worktree brief <TASK> --json` gives the `prompt` field again), with the
+   brief's `agent` fields (`model`, `effort`) as the Agent tool's parameters. Without
    sub-agents, work through the briefs yourself one at a time, still inside each worktree.
 4. As workers report back, for each task:
    - review the report. If it asks for a scope change, run `hr scope-change` and re-plan; don't merge;
@@ -60,7 +61,7 @@ treats every worktree result as `stale` for it. In `integrating`, run the full r
 merged commit:
 
 ```bash
-.workflow/hr verify --level all          # parallel-safe tests run concurrently, the rest alone
+.human-rights/hr verify --level all          # parallel-safe tests run concurrently, the rest alone
 ```
 
 Tests run concurrently only if they opt in with `parallel_safe: true`. Tests that share a `resources`

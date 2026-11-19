@@ -61,8 +61,14 @@ class Repo:
             sys.stdin = old_stdin
         return code, out.getvalue() + err.getvalue()
 
+    def say(self, text: str) -> str:
+        payload = json.dumps({"prompt": text, "cwd": str(self.root), "session_id": "test"}).encode("utf-8")
+        proc = subprocess.run([sys.executable, str(PLUGIN / "hooks" / "prompt_capture.py")], input=payload,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        return proc.stdout.decode("utf-8")
+
     def feature_dir(self, fid: str = "FEAT-001") -> Path:
-        feats = sorted((self.root / ".workflow" / "features").glob(fid + "*"))
+        feats = sorted((self.root / ".human-rights" / "features").glob(fid + "*"))
         return feats[0]
 
     def state(self, fid: str = "FEAT-001") -> dict:

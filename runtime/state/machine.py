@@ -68,6 +68,15 @@ def tests_gate(feature: Feature, st: Dict[str, Any], strict: bool) -> List[str]:
     ]
 
 
+def _classified_since_entry(feature: Feature, state: str) -> bool:
+    for ev in reversed(feature.events()):
+        if ev.get("event") == "classified":
+            return True
+        if ev.get("event") == "state_changed" and ev.get("to") == state:
+            return False
+    return False
+
+
 def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     from runtime.approvals.gates import design_status, final_status
     from runtime.verification import failures
@@ -85,13 +94,16 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
         if target != st.get("state_before_block"):
             return [f"from blocked you can only return to the previous state ({st.get('state_before_block')})"]
         if st.get("block_kind") == "escalation":
-            return ["an escalation must be released by a human: `! .workflow/hr unblock --by <name> --note <decision>`"]
+            return ["an escalation must be released by a human decision (in chat, recorded with `hr unblock --quote`)"]
         return []
     if target not in TRANSITIONS.get(cur, ()):
         return [f"transition not allowed: {cur} -> {target} (allowed: {', '.join(TRANSITIONS.get(cur, ()) + ALWAYS_ALLOWED)})"]
 
     if cur == "triaging" and not mode:
         problems.append("classify first (`hr classify`)")
+    if cur == "clarifying" and not _classified_since_entry(feature, cur):
+        problems.append("reclassify after clarifying: re-score the axes with the user's answers (ambiguity at "
+                        "least) and run `hr classify` before moving on")
 
     req = feature.requirements()
     if target == "awaiting_design_approval" or (target == "executing" and mode in ("L2", "L3")):
@@ -103,7 +115,7 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     if target == "executing":
         problems += [f"[unresolved requirement] {q}" for q in _open_blocking_questions(req)]
         if st["required_gates"].get("design") and not design_status(feature, st)["valid"]:
-            problems.append("no valid design approval (a human runs `! .workflow/hr approve design --by <name>`)")
+            problems.append("no valid design approval (the human approves in chat; recorded with `hr approve design --quote`)")
 
     if cur == "verifying_tasks" and target == "integrating":
         pending = [t["id"] for t in feature.task_graph().get("tasks", []) if t.get("status") not in ("verified", "cancelled")]
@@ -131,7 +143,7 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
 
     if target == "ready_to_merge" and cur == "awaiting_final_approval":
         if not final_status(feature, st)["valid"]:
-            problems.append("no valid final approval (a human runs `! .workflow/hr approve final --by <name>`)")
+            problems.append("no valid final approval (the human approves in chat; recorded with `hr approve final --quote`)")
 
     if target == "completed" and cur == "ready_to_merge":
         if st["required_gates"].get("final"):
@@ -187,7 +199,7 @@ def force_block(feature: Feature, reason: str) -> None:
     feature.emit("state_changed", **{"from": prev, "to": "blocked", "reason": reason, "escalation": True})
 
 
-def unblock(feature: Feature, by: str, note: str) -> Dict[str, Any]:
+def unblock(feature: Feature, by: str, note: str, proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if not by:
         raise HRError("--by is required")
     st = feature.state()
@@ -196,26 +208,28 @@ def unblock(feature: Feature, by: str, note: str) -> Dict[str, Any]:
     prev = st["state_before_block"]
     st.update(state=prev, state_before_block=None, block_reason=None, block_kind=None)
     feature.save_state(st)
-    feature.emit("unblocked", to=prev, note=note, actor=f"human:{by}")
+    feature.emit("unblocked", to=prev, note=note, actor=f"human:{by}", **(proof or {}))
     return st
 
 
-def next_human_decision(feature: Feature, st: Dict[str, Any]) -> Optional[str]:
+def next_human_decision(feature: Feature, st: Dict[str, Any], lang: str = "en") -> Optional[str]:
+    from runtime.i18n import t
+
     s = st["state"]
     if s == "awaiting_design_approval":
-        return "review the design, then approve: `! .workflow/hr approve design --by <name>` (or request changes in chat)"
+        return t(lang, "decide_design")
     if s == "awaiting_final_approval":
-        return "review the result, then approve: `! .workflow/hr approve final --by <name> [--risks \"...\"]` (or request changes in chat)"
+        return t(lang, "decide_final")
     if s == "blocked":
         if st.get("block_kind") == "escalation":
-            return f"escalation: {st.get('block_reason')} - decide, then `! .workflow/hr unblock --by <name> --note \"...\"`"
-        return f"resolve blocker: {st.get('block_reason')}"
+            return t(lang, "decide_escalation", reason=st.get("block_reason"))
+        return t(lang, "decide_blocker", reason=st.get("block_reason"))
     if s == "clarifying":
         qs = _open_blocking_questions(feature.requirements())
         if qs:
-            return "answer open questions: " + "; ".join(qs[:5])
+            return t(lang, "decide_questions", qs="; ".join(qs[:5]))
     if s == "ready_to_merge":
-        return "merge (auto-merge is off by default): pass `hr merge-check`, then merge the PR"
+        return t(lang, "decide_merge")
     return None
 
 

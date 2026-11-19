@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from runtime.common import (
+    LEGACY_DIRNAME,
     SCHEMA_VERSION,
     WORKFLOW_DIRNAME,
     HRError,
@@ -27,8 +28,10 @@ GITIGNORE = """\
 hr
 hr.cmd
 *.lock
+.local/
 features/*/.internal/logs/
 features/*/.internal/cache/
+features/*/evidence/
 """
 
 INTERNAL_FILES = {
@@ -63,8 +66,19 @@ class Workspace:
     def initialized(self) -> bool:
         return self.config_path.exists()
 
+    @property
+    def legacy(self) -> Optional[Path]:
+        old = self.root / LEGACY_DIRNAME
+        if self.wf.exists() or not (old / "config.yaml").is_file():
+            return None
+        text = (old / "config.yaml").read_text(encoding="utf-8", errors="replace")
+        return old if "redpill:" in text or "routing:" in text else None
+
     def require_init(self) -> None:
         if not self.initialized:
+            if self.legacy:
+                raise HRError(f"found the old {LEGACY_DIRNAME}/ workspace. Run `hr init` (or /hrs:init) to move it "
+                              f"to {WORKFLOW_DIRNAME}/.")
             raise HRError(f"{self.wf} not found. Run `hr init` first.")
 
     def config(self) -> Dict[str, Any]:
@@ -72,6 +86,10 @@ class Workspace:
 
     def init(self) -> List[str]:
         created = []
+        old = self.legacy
+        if old:
+            old.rename(self.wf)
+            created.append(f"{self.wf} (moved from {old.name}/)")
         self.features_dir.mkdir(parents=True, exist_ok=True)
         if not self.config_path.exists():
             write_text_atomic(self.config_path, DEFAULT_CONFIG_TEXT)
@@ -86,6 +104,11 @@ class Workspace:
     def ensure_wrappers(self) -> None:
         if not self.wf.is_dir():
             return
+        gi = self.wf / ".gitignore"
+        if gi.exists():
+            text = gi.read_text(encoding="utf-8")
+            if ".local/" not in text.splitlines():
+                write_text_atomic(gi, text.rstrip("\n") + "\n.local/\n")
         entry = HR_ENTRY.as_posix()
         sh = (
             "#!/bin/sh\n"

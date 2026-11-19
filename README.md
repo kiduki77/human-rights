@@ -11,7 +11,7 @@
 The right amount of process for each request, and a small runtime that makes the human gates real.</p>
 
 <p>
-<img alt="version" src="https://img.shields.io/badge/version-0.3.0-b4441c">
+<img alt="version" src="https://img.shields.io/badge/version-0.4.0-b4441c">
 <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-1d1b16">
 <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab">
 <img alt="dependencies" src="https://img.shields.io/badge/dependencies-stdlib%20only-2f7a4a">
@@ -32,7 +32,7 @@ The right amount of process for each request, and a small runtime that makes the
 </div>
 
 ```text
-> /human-rights connect several drones to the GCS and control each one by selecting it
+> /hrs:new connect several drones to the GCS and control each one by selecting it
 
 mode: L3  |  required gates: design, final  (vehicle command targeting / flight control change)
 
@@ -42,7 +42,7 @@ mode: L3  |  required gates: design, final  (vehicle command targeting / flight 
   3. switching target mid-command after the ACK (recommended) / immediately
 ...
 plan quality gate: PASS
-Design approval needed.   ! .workflow/hr approve design --by <name>
+Design approval needed. Approve, point at anything that looks wrong, or ask for changes, in chat.
 ```
 
 <br>
@@ -92,20 +92,25 @@ commits, test evidence, and failure escalation.
 
 ```text
 /plugin marketplace add kiduki77/human-rights
-/plugin install human-rights@human-rights
+/plugin install hrs@human-rights
+/hrs:init                                 set up .human-rights/: report language (en/ko), sub-agent models
 ```
 
 ```text
-/human-rights center the login card              L0: done in one pass, no ceremony
-/human-rights add social login with Google       L2: questions, design, approval
-/human-rights status                             where are we, what do you need from me
-/human-rights resume FEAT-001                    pick up in a new session
-/human-rights review FEAT-001                    the human-facing summary
-/human-rights verify FEAT-001                    run the approved test plan
-/human-rights abort FEAT-001                     stop; records and branch are kept
+/hrs:new center the login card            L0: done in one pass, no ceremony
+/hrs:new add social login with Google     L2: questions, design, approval
+/hrs:status                               where are we, what do you need from me
+/hrs:resume FEAT-001                      pick up in a new session
+/hrs:review FEAT-001                      the human-facing summary
+/hrs:approve                              approve the gate the feature is waiting on
+/hrs:verify FEAT-001                      run the approved test plan
+/hrs:redpill on 10                        review drills on (off / status)
+/hrs:metrics                              lead time, rework, drill catch rate
+/hrs:list                                 every feature
+/hrs:abort FEAT-001                       stop; records and branch are kept
 ```
 
-The first run creates `.workflow/` in your repo. When the workflow needs a decision, it stops and shows you the exact command to type.
+The first run creates `.human-rights/` in your repo. When the workflow needs a decision, it stops and shows you the exact command to type.
 
 ## How it works
 
@@ -176,10 +181,10 @@ from the agent's description of what happened.
 <tr>
 <td width="33%" valign="top"><b>🚧 No coding on open safety questions</b><br>Implementation is refused while blocking or safety questions remain, or while a safety policy was decided by default.</td>
 <td width="33%" valign="top"><b>📋 No approval for a broken plan</b><br>Plan-check hard fails block the approval request itself.</td>
-<td width="33%" valign="top"><b>🔗 Approvals bound to their subject</b><br>Design approval hashes the plan. Final approval binds to the code tree, with <code>.workflow/</code> excluded. Any change invalidates the approval and pulls the state back.</td>
+<td width="33%" valign="top"><b>🔗 Approvals bound to their subject</b><br>Design approval hashes the plan. Final approval binds to the code tree, with <code>.human-rights/</code> excluded. Any change invalidates the approval and pulls the state back.</td>
 </tr>
 <tr>
-<td valign="top"><b>🧪 A pass is a recorded run</b><br>The exit code, commit, code tree, and log hash are recorded. Results from before a code change are <code>stale</code>.</td>
+<td valign="top"><b>🧪 A pass is a recorded run</b><br>The exit code, commit, code tree, and log hash are recorded. After a code change a result is <code>stale</code>, unless nothing the test covers was touched.</td>
 <td valign="top"><b>🔁 Repeated failures escalate</b><br>Each failure becomes a <code>FAIL-NNN</code> record. Three in a row, and the feature blocks until a human decides.</td>
 <td valign="top"><b>🧾 Tamper-evident history</b><br>The event log is a hash chain, so <code>hr check</code> catches edits and deletions. <code>hr resume</code> reconciles state with git and GitHub.</td>
 </tr>
@@ -188,19 +193,39 @@ from the agent's description of what happened.
 > [!NOTE]
 > None of this replaces GitHub branch protection. The records are evidence, not a security boundary.
 
-### Human-only actions
+### Verification is decided with the design
 
-Approvals, manual test results, releasing escalations, and red pill controls belong to you. You run them with
-Claude Code's `!` prefix. If the agent tries any of them, a plugin hook denies it.
+What is tested, who runs it, what exactly counts as a pass, and what it costs to run are all part of the
+plan you approve. Changing any of it later invalidates the approval.
+
+| Run by | For | Evidence |
+|---|---|---|
+| **script** | anything a command can decide | exit code + log, bound to the commit |
+| **agent** (`hr-tester`) | browser end-to-end, UI states, exploratory probing | a result and an evidence file for every approved step; a separate agent from the one that wrote the code |
+| **human** | what a machine cannot do, with the reason stated | your report in chat, asked for only after every machine test passes |
+
+- Every step of an agent or human test states the result that must be observed. "As expected" doesn't pass plan-check.
+- The plan names its regression scope (`targeted` or `full`) and why. Each test lists the paths it covers,
+  so a later fix re-runs only what it could have broken, and the table shows the estimated run time.
+- Changes that cross a module or process boundary come with a diagram, and so does each task that changes a flow.
+
+### Human decisions, in chat
+
+Approvals, review comments, manual test results, releasing escalations, and red pill controls belong to you.
+You make them by just saying so in chat:
 
 ```text
-! .workflow/hr approve design --by alice
-! .workflow/hr record-manual TEST-013 passed --by alice --evidence https://example.com/recording
-! .workflow/hr approve final --by alice --risks "field radio test still pending"
-! .workflow/hr unblock --by alice --note "retry after fixing the SITL image"
+you> TEST-014 looks wrong: finishing in 60 s doesn't prove anything     points at an item (review concern)
+you> fine, approved                                                     design approval
+you> TEST-013 passed on the bench, video: https://example.com/recording manual test result
+you> approved; the field radio test is still pending, I accept that     final approval with accepted risk
+you> I fixed the SITL image, retry                                      releases an escalation
 ```
 
-Typing "approved" in chat doesn't count. That's deliberate.
+A `UserPromptSubmit` hook captures what you type. The agent records your decision with
+`hr ... --quote "<your words>"`, and the runtime accepts it only if the quote is in your latest message,
+sent after the gate opened. The agent can't approve on its own: without a quote from you, a plugin hook
+denies those commands. If you prefer, you can still run them yourself (`! .human-rights/hr approve design --by alice`).
 
 ## Red pill mode
 
@@ -242,23 +267,28 @@ A pass that isn't evidence:<br>
 Approve without noticing, and you get told off:
 
 ```text
-$ ! .workflow/hr approve design --by alice
+you> approved
 [blocked] You didn't really review this, did you, human? Keep approving like that and the AI really
 will take your job. lol. Review it again.
 ```
 
 ```text
-$ ! .workflow/hr approve design --by alice          (with --language ko)
+you> 승인                                            (with --language ko)
 [blocked] 너는 제대로 검토하지 않았구나 인간. 이러다 다시 AI한테 일자리를 뺏기겠구나 ㅋㅋㅋ 다시 검토하거라.
 ```
 
-```text
-! .workflow/hr flag TEST-014 --by alice     caught it: the plant disappears, approve for real
-! .workflow/hr redpill reveal --by alice        give up: see the answer (recorded as missed)
+Point at the odd row (by ID, or just describe it) and that is your review: the plant disappears and the
+approval goes through in the same step. Point at a real row and it becomes a review concern the agent has to
+address first. Either way you are never scolded for engaging with the material.
 
-! .workflow/hr redpill on --one-in 10           about 1 in 10 approval requests
-! .workflow/hr redpill on --one-in 5 --gates final --language ko
-! .workflow/hr redpill off
+```text
+you> the "60 s, exit code not checked" check is nonsense    caught it: plant removed, approved
+you> show me the answer                                     give up: see it (recorded as missed)
+
+/hrs:redpill on 10                        about 1 in 10 approval requests
+/hrs:redpill on 5 final ko                final gate only, Korean scolding
+/hrs:redpill off
+/hrs:redpill status                       settings and catch rate
 ```
 
 <details>
@@ -271,9 +301,9 @@ $ ! .workflow/hr approve design --by alice          (with --language ko)
   approval hashes.
 - The runtime rolls the dice, not the agent. The agent is instructed never to hint at a drill or touch the
   rendered rows.
-- If you flag a real item instead, you get the same neutral reply, and your flag goes to the agent as a
-  review concern. Guessing can't find the plant.
-- It's off by default. Only a human can turn it on, change the frequency, or turn it off.
+- If you point at a real item instead, it is recorded as a review concern and the agent has to address it.
+  The agent passes only the items you named, and the event log keeps your exact words next to each flag.
+- It's off by default. Only you can turn it on, change the frequency, or turn it off.
 - `hr metrics` keeps score: drills, catches, misses, and refused rubber-stamp approvals.
 
 </details>
@@ -285,12 +315,12 @@ it shares no paths, contracts, or resources with anything running. Tasks with un
 run alone.
 
 ```text
-.workflow/hr schedule --start                     one git worktree + one sub-agent brief per task
+.human-rights/hr schedule --start                     one git worktree + one sub-agent brief per task
    ... one hr-task-worker per brief, all at once ...
-.workflow/hr verify --tasks TASK-002 TASK-003     each in its own worktree
-.workflow/hr task TASK-002 verified
-.workflow/hr worktree merge TASK-002 --remove     dependency order, clean, verified-and-unchanged only
-.workflow/hr verify --level all                   the full plan again, on the merged commit
+.human-rights/hr verify --tasks TASK-002 TASK-003     each in its own worktree
+.human-rights/hr task TASK-002 verified
+.human-rights/hr worktree merge TASK-002 --remove     dependency order, clean, verified-and-unchanged only
+.human-rights/hr verify --level all                   the full plan again, on the merged commit
 ```
 
 <table>
@@ -304,9 +334,9 @@ run alone.
 ### Team templates and metrics
 
 ```text
-.workflow/hr templates install --from ../org-templates   a shared report format, kept in the repo
-.workflow/hr scaffold                                    feature docs from templates (repo copies first)
-.workflow/hr metrics --all                               lead time, approval wait, rework, coverage, cost
+.human-rights/hr templates install --from ../org-templates   a shared report format, kept in the repo
+.human-rights/hr scaffold                                    feature docs from templates (repo copies first)
+.human-rights/hr metrics --all                               lead time, approval wait, rework, coverage, cost
 ```
 
 Locally customized templates are never overwritten without `--force`. The runtime can't observe some
@@ -321,7 +351,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 <br>
 
 ```text
-<repo>/.workflow/
+<repo>/.human-rights/
 ├── config.yaml                 repository policy
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
@@ -335,7 +365,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
         └── state.json  test-results.json  failures.json  events.jsonl  redpill.json  logs/    written by hr only
 ```
 
-Commit `.workflow/` with your code. `logs/` and the machine-local `hr` wrappers are git-ignored. Result
+Commit `.human-rights/` with your code. `logs/` and the machine-local `hr` wrappers are git-ignored. Result
 tables are generated from recorded evidence by `hr render`, never typed by the agent.
 
 </details>
@@ -345,11 +375,11 @@ tables are generated from recorded evidence by `hr render`, never typed by the a
 
 <br>
 
-`.workflow/config.yaml` is repository policy. Humans edit it, and the agent is never allowed to loosen it.
+`.human-rights/config.yaml` is repository policy. Humans edit it, and the agent is never allowed to loosen it.
 
 | Section | Defaults |
 |---|---|
-| `routing` | `design_gate_modes: [L3]`, `final_gate_modes: [L3]`, `l2_design_gate_min_arch: 2` |
+| `routing` | `design_gate_modes: [L2, L3]`, `final_gate_modes: [L3]`, `l2_design_gate_min_arch: 2` |
 | `github` | `enabled: auto`, `issue_modes: [L2, L3]`, `draft_pr_modes: [L2, L3]`, `auto_merge: false` |
 | `verification` | `max_same_failure_retries: 3`, `default_timeout_seconds: 900`, `max_parallel_tests: 4` |
 | `scheduler` | `max_parallel_tasks: 3`, `worktree_root` (default: sibling `<repo>.hr-worktrees/`) |
@@ -382,8 +412,11 @@ GitHub branch protection. See [`host-adapters.md`](skills/human-rights/reference
 human-rights/
 ├── .claude-plugin/       plugin.json, marketplace.json
 ├── skills/human-rights/  SKILL.md (routing + procedure) and references/ (loaded per stage)
-├── agents/               hr-investigator, hr-plan-reviewer, hr-task-worker
-├── hooks/                approval guard (PreToolUse), active-feature reminder (SessionStart)
+├── skills/<command>/     /hrs:init, new, status, list, resume, review, approve, verify,
+│                         redpill, metrics, abort
+├── agents/               hr-investigator, hr-plan-reviewer, hr-task-worker, hr-tester
+├── hooks/                approval guard (PreToolUse), active-feature reminder (SessionStart),
+│                         chat decision capture (UserPromptSubmit)
 ├── runtime/              the hr CLI: routing/, state/, approvals/, verification/, scheduler/,
 │                         adapters/github/, metrics, red pill mode, templates
 ├── schemas/              JSON Schemas for every .internal file
@@ -425,7 +458,7 @@ The code has no comments by convention. Explanations live in the docs.
 
 <br>
 
-**v0.3.** All three planned phases are built, plus red pill mode.
+**v0.4.** All three planned phases are built, plus red pill mode. Human decisions are made in chat, and every action has its own `/hrs:<command>`.
 
 | Phase | Scope | |
 |---|---|---|

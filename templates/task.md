@@ -6,6 +6,16 @@
 ## Acceptance criteria
 - [FILL: AC-...]
 
+<!-- flow:start -->
+## Flow
+```mermaid
+sequenceDiagram
+  participant A as [FILL: caller]
+  participant B as [FILL: callee]
+  A->>B: [FILL: the interaction this task changes]
+```
+
+<!-- flow:end -->
 ## Change boundary
 [FILL: modules/paths this task may change. Anything outside goes back through `hr scope-change`]
 

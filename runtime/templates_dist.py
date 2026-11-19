@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +33,14 @@ def _repo_dir(ws: Workspace) -> Path:
     return ws.wf / "templates"
 
 
+def plugin_templates(ws: Workspace) -> Path:
+    from runtime.i18n import lang_of
+
+    lang = lang_of(ws)
+    localized = PLUGIN_TEMPLATES / lang
+    return localized if lang != "en" and localized.is_dir() else PLUGIN_TEMPLATES
+
+
 def _source_dir(ws: Workspace, source: Optional[str]) -> Path:
     if source:
         p = Path(source)
@@ -44,7 +53,7 @@ def _source_dir(ws: Workspace, source: Optional[str]) -> Path:
         p = Path(manifest["source"])
         if p.is_dir():
             return p
-    return PLUGIN_TEMPLATES
+    return plugin_templates(ws)
 
 
 def status(ws: Workspace, source: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -86,7 +95,7 @@ def install(ws: Workspace, source: Optional[str] = None, force: bool = False) ->
         files[name] = sha256_text_file(dest / name)
         out["copied"].append(name)
     write_json_atomic(dest / MANIFEST, {
-        "source": "plugin" if src == PLUGIN_TEMPLATES else str(src),
+        "source": "plugin" if src == plugin_templates(ws) else str(src),
         "plugin_version": plugin_version(),
         "installed_at": now(),
         "files": files,
@@ -98,39 +107,71 @@ def resolve(ws: Workspace, name: str) -> Path:
     local = _repo_dir(ws) / name
     if local.exists():
         return local
-    p = PLUGIN_TEMPLATES / name
+    p = plugin_templates(ws) / name
+    if not p.exists():
+        p = PLUGIN_TEMPLATES / name
     if not p.exists():
         raise HRError(f"no template named {name}")
     return p
 
 
-def _fill_task(text: str, task: Dict[str, Any], tests: Dict[str, Dict[str, Any]]) -> str:
-    deps = ", ".join(task.get("depends_on", [])) or "none"
+FLOW_SECTION_RE = re.compile(r"<!-- flow:start -->.*?<!-- flow:end -->\n", re.S)
+TASK_SLOTS = {
+    "en": {
+        "title": "[FILL: task title]", "purpose": "[FILL: the single change this task is responsible for]",
+        "deps": "[FILL: 'none' if none]", "risk": "[FILL: low/medium/high]", "review": "[FILL: required/optional]",
+        "boundary": "[FILL: modules/paths this task may change. Anything outside goes back through `hr scope-change`]",
+        "tests": "| [FILL: TEST-...] | | not run |",
+        "result": "[FILL: after implementation: commit SHA, what changed in 1-2 lines, remaining issues]",
+    },
+    "ko": {
+        "title": "[FILL: 작업 제목]", "purpose": "[FILL: 이 작업이 책임지는 단 하나의 변경]",
+        "deps": "[FILL: 없으면 '없음']", "risk": "[FILL: 낮음/보통/높음]", "review": "[FILL: 필수/선택]",
+        "boundary": "[FILL: 이 작업이 바꿀 수 있는 모듈/경로. 그 밖은 `hr scope-change` 로 다시 승인]",
+        "tests": "| [FILL: TEST-...] | | 미실행 |",
+        "result": "[FILL: 구현 후: 커밋 SHA, 무엇이 바뀌었는지 1-2줄, 남은 문제]",
+    },
+}
+REVIEW_KO = {"required": "필수", "optional": "선택"}
+
+
+def _fill_task(text: str, task: Dict[str, Any], tests: Dict[str, Dict[str, Any]], lang: str = "en") -> str:
+    from runtime.i18n import t, value
+
+    slots = TASK_SLOTS.get(lang, TASK_SLOTS["en"])
+    deps = ", ".join(task.get("depends_on", [])) or t(lang, "task_none")
     ac = "\n".join(f"- {a['id']}: {a['text']}" for a in task.get("acceptance_criteria", [])) or "- [FILL: AC-...]"
     paths = ", ".join(f"`{p}`" for p in (task.get("scope") or {}).get("paths", [])) or "[FILL: paths]"
+    not_run = t(lang, "task_not_run")
     rows = "\n".join(
-        f"| {v} | {('`' + tests[v]['command'] + '`') if tests.get(v, {}).get('command') else (tests.get(v, {}).get('procedure') or '-')} | not run |"
+        f"| {v} | {('`' + tests[v]['command'] + '`') if tests.get(v, {}).get('command') else (tests.get(v, {}).get('procedure') or '-')} | {not_run} |"
         for v in task.get("verification", [])
     )
+    review = task.get("human_review", "optional")
     repl = [
         ("[FILL: TASK-001]", task["id"]),
-        ("[FILL: task title]", task.get("title", "")),
-        ("[FILL: the single change this task is responsible for]", task.get("purpose", "")),
-        ("[FILL: 'none' if none]", deps),
-        ("[FILL: low/medium/high]", task.get("risk", "-")),
-        ("[FILL: required/optional]", task.get("human_review", "optional")),
+        (slots["title"], task.get("title", "")),
+        (slots["purpose"], task.get("purpose", "")),
+        (slots["deps"], deps),
+        (slots["risk"], value(lang, "risk", task.get("risk", "-"))),
+        (slots["review"], REVIEW_KO.get(review, review) if lang == "ko" else review),
         ("- [FILL: AC-...]", ac),
-        ("[FILL: modules/paths this task may change. Anything outside goes back through `hr scope-change`]",
-         f"{paths}. Anything outside goes back through `hr scope-change`."),
-        ("| [FILL: TEST-...] | | not run |", rows or "| - | - | - |"),
-        ("[FILL: after implementation: commit SHA, what changed in 1-2 lines, remaining issues]", "Not implemented yet."),
+        (slots["boundary"], t(lang, "task_boundary", paths=paths)),
+        (slots["tests"], rows or "| - | - | - |"),
+        (slots["result"], t(lang, "task_not_implemented")),
     ]
     for old, new in repl:
         text = text.replace(old, new)
+    if task.get("changes_flow") is True:
+        text = text.replace("<!-- flow:start -->\n", "").replace("<!-- flow:end -->\n", "")
+    else:
+        text = FLOW_SECTION_RE.sub("", text)
     return text
 
 
 def scaffold(feature: Feature, names: List[str], overwrite: bool = False) -> Dict[str, List[str]]:
+    from runtime.i18n import lang_of
+
     st = feature.state()
     title = st.get("title", "")
     out: Dict[str, List[str]] = {"created": [], "skipped_existing": []}
@@ -145,7 +186,7 @@ def scaffold(feature: Feature, names: List[str], overwrite: bool = False) -> Dic
                 if dest.exists() and not overwrite:
                     out["skipped_existing"].append(dest.relative_to(feature.dir).as_posix())
                     continue
-                write_text_atomic(dest, _fill_task(tmpl, task, tests))
+                write_text_atomic(dest, _fill_task(tmpl, task, tests, lang_of(feature.ws)))
                 out["created"].append(dest.relative_to(feature.dir).as_posix())
             continue
         if name not in DOCS:
@@ -155,7 +196,8 @@ def scaffold(feature: Feature, names: List[str], overwrite: bool = False) -> Dic
         if dest.exists() and not overwrite:
             out["skipped_existing"].append(rel)
             continue
-        text = resolve(feature.ws, tmpl_name).read_text(encoding="utf-8").replace("[FILL: feature name]", title)
+        text = (resolve(feature.ws, tmpl_name).read_text(encoding="utf-8")
+                .replace("[FILL: feature name]", title).replace("[FILL: 기능 이름]", title))
         write_text_atomic(dest, text)
         out["created"].append(rel)
     if out["created"]:

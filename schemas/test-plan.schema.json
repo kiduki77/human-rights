@@ -27,7 +27,8 @@
               "security",
               "safety",
               "performance",
-              "manual"
+              "manual",
+              "static"
             ]
           },
           "level": {
@@ -75,7 +76,8 @@
           "automation": {
             "enum": [
               "automated",
-              "manual"
+              "manual",
+              "agent"
             ]
           },
           "parallel_safe": {
@@ -92,6 +94,46 @@
           "exclusive": {
             "type": "boolean",
             "description": "always run alone"
+          },
+          "runner": {
+            "enum": [
+              "command",
+              "agent",
+              "human"
+            ],
+            "description": "who runs it: a script, hr-tester, or a human (needs human_reason)"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "do": {
+                  "type": "string"
+                },
+                "expect": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "do",
+                "expect"
+              ]
+            },
+            "description": "agent and human tests: each step and the observable result that counts as a pass"
+          },
+          "human_reason": {
+            "type": "string"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "paths whose change can alter this test's result; a passing result is kept while later commits do not touch them"
+          },
+          "estimated_seconds": {
+            "type": "number"
           }
         },
         "additionalProperties": true,
@@ -102,6 +144,24 @@
           "pass_criteria"
         ]
       }
+    },
+    "regression": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "enum": [
+            "targeted",
+            "full"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "rationale"
+      ]
     }
   },
   "additionalProperties": true,

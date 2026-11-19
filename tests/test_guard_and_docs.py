@@ -17,22 +17,22 @@ def guard(tool, **inp):
 
 class GuardTest(unittest.TestCase):
     def test_agent_cannot_approve(self):
-        self.assertEqual(guard("Bash", command=".workflow/hr approve design --by me"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr approve design --by me"), "deny")
         self.assertEqual(guard("Bash", command='python3 "/x/runtime/hr.py" -f FEAT-001 approve final --by me'), "deny")
-        self.assertEqual(guard("PowerShell", command=".workflow\\hr.cmd record-manual TEST-1 passed --by me"), "deny")
-        self.assertEqual(guard("Bash", command=".workflow/hr unblock --by me"), "deny")
+        self.assertEqual(guard("PowerShell", command=".human-rights\\hr.cmd record-manual TEST-1 passed --by me"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr unblock --by me"), "deny")
 
     def test_normal_commands_pass(self):
-        self.assertEqual(guard("Bash", command=".workflow/hr status"), "allow")
-        self.assertEqual(guard("Bash", command=".workflow/hr verify --level all"), "allow")
-        self.assertEqual(guard("Bash", command="cat .workflow/features/FEAT-001-x/.internal/state.json"), "allow")
+        self.assertEqual(guard("Bash", command=".human-rights/hr status"), "allow")
+        self.assertEqual(guard("Bash", command=".human-rights/hr verify --level all"), "allow")
+        self.assertEqual(guard("Bash", command="cat .human-rights/features/FEAT-001-x/.internal/state.json"), "allow")
 
     def test_runtime_files_are_not_hand_written(self):
-        p = "C:/repo/.workflow/features/FEAT-001-x/.internal/state.json"
+        p = "C:/repo/.human-rights/features/FEAT-001-x/.internal/state.json"
         self.assertEqual(guard("Write", file_path=p), "deny")
         self.assertEqual(guard("Edit", file_path=p.replace("state.json", "test-results.json")), "deny")
         self.assertEqual(guard("Write", file_path=p.replace("state.json", "task-graph.json")), "allow")
-        self.assertEqual(guard("Bash", command="echo {} > .workflow/features/FEAT-001-x/.internal/state.json"), "deny")
+        self.assertEqual(guard("Bash", command="echo {} > .human-rights/features/FEAT-001-x/.internal/state.json"), "deny")
 
 
 class DocCheckTest(unittest.TestCase):

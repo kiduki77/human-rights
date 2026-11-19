@@ -1,13 +1,15 @@
 {
   "name": "human-rights",
-  "owner": { "name": "kiduki77" },
+  "owner": {
+    "name": "kiduki77"
+  },
   "description": "human-rights: AI writes the code, humans own the decisions.",
   "plugins": [
     {
-      "name": "human-rights",
+      "name": "hrs",
       "source": "./",
       "description": "Adaptive, human-gated AI development workflow with an evidence-bound runtime.",
-      "version": "0.3.0"
+      "version": "0.4.0"
     }
   ]
 }

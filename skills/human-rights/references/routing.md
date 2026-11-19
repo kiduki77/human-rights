@@ -23,7 +23,7 @@ makes a change look safer than it is. If you are sure, confirm it and send `conf
 - **L1**: any axis at 1.
 - **L0**: every axis 0.
 
-Gates: L3 always requires design and final approval (`routing.design_gate_modes` / `final_gate_modes` in
+Gates: L2 and L3 require design approval, and L3 also final approval (`routing.design_gate_modes` / `final_gate_modes` in
 `config.yaml`). L2 requires design approval when `architecture` >= 2. Flags force gates as below.
 
 ## Flags (`--flags`, comma-separated)
@@ -66,13 +66,18 @@ Write the axes to a file (or pipe them on stdin with `--axes -`):
 ```
 
 ```bash
-.workflow/hr classify --flags vehicle_command --axes @.workflow/features/FEAT-001-multi-drone/details/axes.json
+.human-rights/hr classify --flags vehicle_command --axes @.human-rights/features/FEAT-001-multi-drone/details/axes.json
 ```
 
 ## Reclassification
 
 Run `hr classify` again (with all axes) as soon as you find: a wider scope after exploring, a public
 contract change, an unexpected dependency, or a major verification failure.
+
+**Always reclassify when clarifying ends.** The user's answers usually lower `ambiguity` (a decided policy is
+no longer ambiguous: score it by what is *still* open), and they can also change `scope`, `risk`, or
+`verification` (for example "only the monitor tab" narrows scope). Update each axis's `basis` to cite the
+answers. The runtime refuses to leave `clarifying` until a classification newer than entering it exists.
 
 Moving to a lower mode is allowed, but safety-related approval requirements that already triggered stay.
 Tell the user the new classification and why in one line.

@@ -56,6 +56,7 @@ class L3Test(unittest.TestCase):
     def _to_design_approval(self, fail_tests=()):
         install_example_plan(self.r, fail_tests)
         self.assertEqual(self.r.hr("transition", "clarifying")[0], 0)
+        self.r.hr("classify", "--axes", L3_AXES, "--flags", "vehicle_command", "--note", "after clarifying")
         self.assertEqual(self.r.hr("transition", "planning")[0], 0)
         code, out = self.r.hr("transition", "awaiting_design_approval")
         self.assertEqual(code, 0, out)
@@ -127,7 +128,7 @@ class L3Test(unittest.TestCase):
         self.assertEqual(r.hr("transition", "integrating")[0], 0)
 
         code, out = r.hr("verify", "--level", "all")
-        self.assertIn("MANUAL", out)
+        self.assertIn("[HUMAN] TEST-013", out)
         code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 3, "manual safety test not recorded yet")
         self.assertIn("TEST-013", out)

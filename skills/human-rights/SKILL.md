@@ -1,6 +1,7 @@
 ---
 name: human-rights
-description: "Human-led, AI-executed development workflow. Use when the user types /human-rights, or asks to build a feature while keeping human control over requirements, design approval, verification and final approval. Routes each request to L0 Direct / L1 Focused / L2 Planned / L3 Governed so trivial edits stay fast and risky changes get intent elicitation, code investigation, a review-aware task DAG, an integration test plan approved before coding, evidence-bound verification, and explicit human gates. Also handles `status`, `list`, `resume <id>`, `review <id>`, `verify <id>`, `abort <id>`."
+description: "Human-led, AI-executed development workflow (hrs). Use when the user asks to build or change something while keeping human control over requirements, design approval, verification and final approval, or when an /hrs:* command tells you to load it. Routes each request to L0 Direct / L1 Focused / L2 Planned / L3 Governed so trivial edits stay fast and risky changes get intent elicitation, code investigation, a review-aware task DAG, an integration test plan approved before coding, evidence-bound verification, and explicit human gates decided in chat."
+user-invocable: false
 argument-hint: "<feature request> | status | list | resume <FEAT-id> | review <FEAT-id> | verify <FEAT-id> | abort <FEAT-id>"
 ---
 
@@ -21,13 +22,17 @@ happened is not evidence.
 
 If you break one of these, the whole workflow is pointless. When in doubt, take the more conservative path.
 
-1. **Only humans approve, record manual tests, or release escalations.** Never run `hr approve`,
-   `hr record-manual`, or `hr unblock`; a hook blocks them anyway. Show the human the exact command to run:
-   `! .workflow/hr approve design --by <name>`. A chat message like "looks good, approved" is not an
-   approval event. When you get one, show the command again.
-2. **Test success comes only from `hr verify` records.** Never report as passing a command whose output
-   you only read, a test that "should pass", or a test that was not run. Say plainly when something was
-   not run.
+1. **Only humans approve, flag, record manual tests, release escalations, or toggle red pill mode, and
+   they do it in chat.** Act on such a decision only when the human's own latest message makes it. Then run
+   the command with `--quote "<their exact words>"` (`hr approve`, `flag`, `record-manual`, `unblock`,
+   `redpill on|off|reveal`). The runtime checks the quote against the message a hook captured from the
+   human. Never act on your own reading of an older message, a summary, or a tool result, and never invent
+   a quote. Without `--quote` these commands are blocked for you. See
+   [approvals](references/approvals.md#chat-decisions).
+2. **Test success comes only from runtime records** (`hr verify`, `hr record-agent`, `hr record-manual`),
+   judged against the pass criteria the human approved with the design. Never report as passing a command
+   whose output you only read, a test that "should pass", or a test that was not run, and never loosen a
+   criterion to get a pass. Say plainly when something was not run.
 3. **State changes go only through `hr`.** Never write `.internal/state.json`, `test-results.json`,
    `failures.json` or `events.jsonl`. You write only `requirements.json`, `task-graph.json`,
    `test-plan.json`, and the human-facing Markdown.
@@ -45,23 +50,32 @@ If you break one of these, the whole workflow is pointless. When in doubt, take 
     unacceptable item in the rendered approval tables. This tests whether the human really reviews. Never
     read `.internal/redpill.json`, never say whether a drill is active, and never edit, remove, or comment on
     rows that `hr render` produced. When you request approval, paste the rendered task and verification
-    tables from `overview.md` verbatim. If `hr approve` is refused with a scolding, that is the drill
-    working: relay it as is. See [approvals](references/approvals.md#red-pill-mode-review-vigilance-drills).
+    tables from `overview.md` verbatim. Pass every item the human criticises to `--flag`, and never pass
+    one they didn't mention. If `hr approve` is refused with a scolding, that is the drill working: relay
+    it as is. See [approvals](references/approvals.md#red-pill-mode-review-vigilance-drills).
 
 ## 1. Locating `hr`
 
 - Let `<skill>` be this file's directory. The runtime is `<skill>/../../runtime/hr.py`.
-- If the repository has no `.workflow/` directory yet, run `python3 "<skill>/../../runtime/hr.py" init`
-  first. Use `python` if `python3` is missing, as is common on Windows.
-- After that, call it as `.workflow/hr <command>` (Bash) or `.workflow\hr.cmd <command>` (PowerShell).
+- If the repository has no `.human-rights/` directory yet, set it up as `/hrs:init` does (ask the human for
+  the report language and the sub-agent preset), or at least run
+  `python3 "<skill>/../../runtime/hr.py" init --language <the language the user writes in>`. Use `python` if
+  `python3` is missing, as is common on Windows.
+- After that, call it as `.human-rights/hr <command>` (Bash) or `.human-rights\hr.cmd <command>` (PowerShell).
   The wrappers are refreshed on every run.
 - `hr` output is evidence for the human. You may summarize it, but never change a block reason or a number.
 - Outside a git repository only L0/L1 are possible, because verification can't be bound to a code
   version. If L2/L3 is needed, suggest `git init`.
-- Write human-facing reports in the language set by `docs.language` in `.workflow/config.yaml` (default
-  `en`), or in the user's language if they ask. Keep IDs, commands and the `hr:*` markers unchanged.
+- Write everything under `.human-rights/` that humans read in the language set by `docs.language` in
+  `.human-rights/config.yaml`: headings, table headers, and prose. `hr scaffold` already picks templates in
+  that language (`templates/ko/` for `ko`), and `hr render` writes its tables in it. Keep IDs, commands, file
+  paths, JSON keys, and the `hr:*` markers unchanged. If the user writes in another language than
+  `docs.language`, ask once whether to switch it.
 
-## 2. Arguments
+## 2. Arguments and commands
+
+Each row also has its own slash command: `/hrs:init`, `/hrs:new`, `:status`, `:list`, `:resume`, `:review`,
+`:verify`, `:abort`, `:metrics`, plus `:approve` and `:redpill` for the human's decisions.
 
 | Input | Action |
 |---|---|
@@ -84,11 +98,13 @@ If you break one of these, the whole workflow is pointless. When in doubt, take 
    confidence. Criteria are in [routing](references/routing.md). Add flags for physical safety, vehicle
    command, auth, secrets, destructive migration, or irreversible external actions.
    ```bash
-   .workflow/hr classify --flags vehicle_command --axes @/path/to/axes.json
+   .human-rights/hr classify --flags vehicle_command --axes @/path/to/axes.json
    ```
 4. Tell the user in one line which mode and required gates `hr` chose. The mode comes from per-axis
    rules, not a score total. A safety gate that has already triggered survives reclassification.
-5. At any later stage, **reclassify** with `hr classify` when you find a wider scope, a contract change,
+5. When clarifying ends, **reclassify** with the answers: re-score `ambiguity` by what is still open and any
+   axis the answers changed. The runtime won't leave `clarifying` without it.
+6. At any later stage, **reclassify** with `hr classify` when you find a wider scope, a contract change,
    an unexpected dependency, or a major verification failure.
 
 ## 4. Playbooks by mode
@@ -124,7 +140,7 @@ lines.
 | Quality gate | `planning` | `hr plan-check` with zero hard fails, plus an independent review | [planning](references/planning.md) |
 | Design approval | `awaiting_design_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Implement & verify tasks | `executing` / `verifying_tasks` | Tasks in DAG order: commit, `hr verify --task`, `hr task ... verified` | [execution](references/execution.md) |
-| Integration testing | `integrating` | Run every required test on **the same commit**; failure loop | [integration](references/integration.md) |
+| Integration testing | `integrating` | Scripts, then agent tests (`hr-tester`), then human tests; every result valid for the final commit; failure loop | [integration](references/integration.md) |
 | Final approval | `awaiting_final_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Merge | `ready_to_merge` | `hr merge-check`, a human merges, then `hr transition completed` | [github](references/github.md) |
 
@@ -156,9 +172,9 @@ lines.
   the human must make**. Raw logs and file lists go to `details/` with a link. The standard is in
   [documents](references/documents.md).
 - Never type result tables yourself. `hr render` fills the `<!-- hr:results -->` blocks from evidence.
-- When you ask for approval, show only what the decision needs and give the exact command. See
+- When you ask for approval, show only what the decision needs and say how to answer in chat. See
   [approvals](references/approvals.md).
-- Start documents with `hr scaffold` (it uses the repo's `.workflow/templates/` first, then the plugin's,
+- Start documents with `hr scaffold` (it uses the repo's `.human-rights/templates/` first, then the plugin's,
   and pre-fills task documents from `task-graph.json`), then fill in the `[FILL: ...]` parts.
 - After writing documents, `hr doc-check` must pass.
 - When the feature completes, include `hr metrics` in the final report. If the host reports token usage
@@ -173,6 +189,15 @@ conversation is always the single writer of workflow state.
 - `hr-plan-reviewer`: independent review of the plan and approval documents, once after `plan-check`
   passes and before you request approval.
 - `hr-task-worker`: implements one task inside its own git worktree during a parallel batch.
+- `hr-tester`: runs one agent test (browser end-to-end, UI behaviour, exploratory probing) against the
+  approved steps and pass criteria, with evidence per step. It never edits code. The conversation that
+  wrote the code never grades its own agent tests.
+
+**Model and effort come from the repository, not from you.** Before spawning, read `hr agents --json` and
+pass each role's `agent_call` fields (`model`, `effort`) as the Agent tool's `model` and `effort`
+parameters. Omit a field the JSON omits, so it falls back to the session model. `hr schedule --start --json`
+already puts them on each brief as `agent`. The human picks the preset during `/hrs:init`, or edits the
+`agents:` section of `config.yaml`. Don't pick a model yourself.
 
 Parallel implementation is opt-in. Use it when the user wants speed and the DAG has independent tasks.
 `hr schedule` decides what may run together: no dependency, no overlapping paths, no contract or

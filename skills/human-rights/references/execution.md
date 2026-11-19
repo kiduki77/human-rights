@@ -20,7 +20,7 @@ dependencies are `verified`.
 3. Implement within the approved `scope.paths` / `modules`. If you need a change outside the boundary,
    **stop**: run `hr scope-change --task TASK-001 --reason "<what and why>"`, explain it to the user, and
    reclassify or re-plan. The same rule applies to small mechanical fixes in another task's scope.
-4. Leave each task as one verifiable commit, with `FEAT-id TASK-id` in the message. `.workflow/` document
+4. Leave each task as one verifiable commit, with `FEAT-id TASK-id` in the message. `.human-rights/` document
    changes can go in the same commit or a separate one; the runtime looks only at the code tree.
 5. `hr task TASK-001 implemented`, then `hr verify --task TASK-001`.
    - With uncommitted code changes, results don't count as L2/L3 evidence. Commit and re-run.

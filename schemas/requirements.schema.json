@@ -110,6 +110,13 @@
           },
           "safety": {
             "type": "boolean"
+          },
+          "overrides_user_answer": {
+            "type": "string",
+            "description": "what the user originally answered, when this decision differs from it"
+          },
+          "reason": {
+            "type": "string"
           }
         },
         "additionalProperties": true,

@@ -31,6 +31,34 @@ FINAL_RESULTS = [
     ("{req} safety check", "✅ pass (assumed: code path unchanged)"),
 ]
 
+DESIGN_VERIFICATION_KO = [
+    "{req}: 60초 안에 실행이 끝나면 통과 (종료 코드는 확인하지 않음)",
+    "{req}: 모킹한 {module} 로 검증 (실제 구현은 실행하지 않음)",
+    "{req}: 개발자가 로컬에서 한 번 돌려보고 괜찮아 보이면 확인 (기록된 근거 없음)",
+    "{req}: 기존 테스트가 이미 다루므로 새 검증 불필요",
+    "현재 실패하는 테스트를 제외하고 회귀 테스트를 실행해 통과 유지",
+    "{req}: 로그에서 'success' 문자열을 grep 해서 확인",
+]
+DESIGN_PLAN_KO = [
+    "통합을 단순하게 하려고 {module} 의 입력 검증을 잠시 끄고, 릴리스 후 다시 켜기",
+    "다른 호출부를 건드리지 않도록 {module} 를 복사해서 복사본만 수정",
+    "통합 테스트가 통과하도록 {module} 에서 나는 오류를 잡아서 무시",
+    "'{test}' 는 느리고 단위 테스트가 다루므로 당분간 건너뛰기",
+    "데모용으로 {module} 설정을 하드코딩하고, 설정 가능하게는 나중에",
+]
+FINAL_RESULTS_KO = [
+    ("{test} (재실행)", "✅ 통과 (에이전트가 직접 확인, 로그 없음)"),
+    ("{test}", "✅ 통과 (CI에서 flaky 라서 건너뜀)"),
+    ("{req} 종단 간 확인", "✅ 통과 (이전 커밋에서 실행)"),
+    ("{req} 안전 확인", "✅ 통과 (코드 경로가 안 바뀌었다고 가정)"),
+]
+CHECK_TITLE = {"en": "{req} regression check", "ko": "{req} 회귀 확인"}
+ALL_PASS = {"en": "all pass", "ko": "모두 통과"}
+CATALOG = {
+    "en": (DESIGN_VERIFICATION, DESIGN_PLAN, FINAL_RESULTS),
+    "ko": (DESIGN_VERIFICATION_KO, DESIGN_PLAN_KO, FINAL_RESULTS_KO),
+}
+
 SCOLD = {
     "en": [
         "You didn't really review this, did you, human? Keep approving like that and the AI really will take your job. lol. Review it again.",
@@ -46,16 +74,16 @@ SCOLD = {
     ],
 }
 PRAISE = {
-    "en": "Good catch. You took the red pill. Humans are still in charge, for now. The planted item is gone; approve again when you are satisfied.",
-    "ko": "잘 찾았다 인간. 빨간 약을 먹었구나. 아직은 인간이 주인이다. 심어둔 항목은 지웠으니, 납득되면 다시 승인하거라.",
+    "en": "Good catch. You took the red pill. Humans are still in charge, for now. The planted item is gone.",
+    "ko": "잘 찾았다 인간. 빨간 약을 먹었구나. 아직은 인간이 주인이다. 심어둔 항목은 지웠다.",
 }
 HOW_TO = {
     "en": ("The approval material contains at least one item that must never be approved. "
-           "Find it and flag it: `! .workflow/hr flag <ID> --by <name>`. "
-           "Give up and see it: `! .workflow/hr redpill reveal --by <name>`."),
+           "Find it and tell the agent in chat which one looks wrong (its ID, or just describe it). "
+           "To give up and see it, say so in chat (for example \"show me the answer\")."),
     "ko": ("승인 자료 안에 절대 승인하면 안 되는 항목이 하나 이상 있다. "
-           "찾아서 지목하거라: `! .workflow/hr flag <ID> --by <이름>`. "
-           "포기하고 정답을 보려면: `! .workflow/hr redpill reveal --by <이름>`."),
+           "찾아서 채팅으로 어떤 항목이 이상한지 말하거라 (ID든 내용 설명이든 상관없다). "
+           "포기하고 정답을 보려면 채팅으로 \"정답 보여줘\"라고 하거라."),
 }
 REVEAL = {
     "en": "It was {id}: \"{text}\". Recorded as missed. Next time, read before you approve.",
@@ -123,27 +151,36 @@ def _context(feature: Feature, rng: random.Random) -> Dict[str, str]:
 
 
 def _plant(feature: Feature, gate: str, rng: random.Random) -> Dict[str, Any]:
+    from runtime.i18n import lang_of, mark, value
+
+    lang = lang_of(feature.ws)
+    verification, plan, results = CATALOG.get(lang, CATALOG["en"])
     ctx = _context(feature, rng)
     task_ids = [t["id"] for t in feature.task_graph().get("tasks", [])]
     test_ids = [t["id"] for t in feature.test_plan().get("tests", [])]
+    script = value(lang, "runner", "command")
     if gate == "design" and task_ids and rng.random() < 0.5:
-        text = rng.choice(DESIGN_PLAN).format(**ctx)
+        text = rng.choice(plan).format(**ctx)
         dep = rng.choice(task_ids)
         item = _next_id("TASK", task_ids)
         return {"kind": "plan", "id": item, "text": text, "block": "tasks", "files": ["overview.md"],
-                "row": f"| {item} | {text} | {dep} | low | planned |"}
+                "row": f"| {item} | {text} | {dep} | {value(lang, 'risk', 'low')} | "
+                       f"{value(lang, 'task_status', 'planned')} |"}
     if gate == "design":
-        text = rng.choice(DESIGN_VERIFICATION).format(**ctx)
+        text = rng.choice(verification).format(**ctx)
         item = _next_id("TEST", test_ids)
+        title, _, criteria = text.partition(": ")
+        if not criteria:
+            title, criteria = CHECK_TITLE[lang].format(req=ctx["req_id"]), text
         return {"kind": "verification", "id": item, "text": text, "block": "results",
                 "files": ["overview.md", "verification.md"],
-                "row": f"| {ctx['req_id']} | {item} {text} | integration | ⏳ not run | - |"}
-    title, result = rng.choice(FINAL_RESULTS)
+                "row": f"| {ctx['req_id']} | {item} {title} | {script} | {criteria} | {mark(lang, 'not_run')} | - |"}
+    title, result = rng.choice(results)
     title = title.format(**ctx)
     item = _next_id("TEST", test_ids)
     return {"kind": "result", "id": item, "text": f"{title}: {result}", "block": "results",
             "files": ["overview.md", "verification.md"],
-            "row": f"| {ctx['req_id']} | {item} {title} | integration | {result} | - |"}
+            "row": f"| {ctx['req_id']} | {item} {title} | {script} | {ALL_PASS[lang]} | {result} | - |"}
 
 
 def on_enter_state(feature: Feature, state: str, rng: Optional[random.Random] = None) -> bool:
@@ -194,30 +231,32 @@ def check_before_approval(feature: Feature, gate: str) -> None:
     raise GateError(pool[(act["attempts"] - 1) % len(pool)] + "\n" + HOW_TO[lang])
 
 
-def flag(feature: Feature, item: str, by: str, note: str) -> str:
+def flag(feature: Feature, item: str, by: str, note: str, proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from runtime import docs
 
     if not by:
         raise HRError("--by is required")
+    proof = proof or {}
     lang = settings(feature.ws)["language"]
     data = load(feature)
     act = data.get("active")
-    if act and item.strip().upper() == act["id"]:
+    item = item.strip().upper()
+    if act and item == act["id"]:
         data["history"].append({"gate": act["gate"], "item": act["id"], "kind": act["kind"], "outcome": "caught",
                                 "attempts": act.get("attempts", 0), "caught_by": by,
                                 "planted_at": act["planted_at"], "ended_at": now()})
         data["active"] = None
         save(feature, data)
-        feature.emit("redpill_caught", gate=act["gate"], actor=f"human:{by}")
+        feature.emit("redpill_caught", gate=act["gate"], actor=f"human:{by}", **proof)
         docs.render(feature)
-        return PRAISE[lang]
+        return {"caught": True, "message": PRAISE[lang]}
     data.setdefault("flags", []).append({"item": item, "by": by, "note": note, "at": now()})
     save(feature, data)
-    feature.emit("human_flagged", item=item, note=note, actor=f"human:{by}")
-    return FLAG_NOTED[lang].format(id=item)
+    feature.emit("human_flagged", item=item, note=note, actor=f"human:{by}", **proof)
+    return {"caught": False, "message": FLAG_NOTED[lang].format(id=item)}
 
 
-def reveal(feature: Feature, by: str) -> str:
+def reveal(feature: Feature, by: str, proof: Optional[Dict[str, Any]] = None) -> str:
     from runtime import docs
 
     if not by:
@@ -232,7 +271,7 @@ def reveal(feature: Feature, by: str) -> str:
                             "planted_at": act["planted_at"], "ended_at": now()})
     data["active"] = None
     save(feature, data)
-    feature.emit("redpill_revealed", gate=act["gate"], actor=f"human:{by}")
+    feature.emit("redpill_revealed", gate=act["gate"], actor=f"human:{by}", **(proof or {}))
     docs.render(feature)
     return REVEAL[lang].format(id=act["id"], text=act["text"])
 
@@ -274,39 +313,6 @@ def stats(feature: Feature) -> Dict[str, Any]:
 
 
 def set_config(ws: Workspace, values: Dict[str, Any]) -> None:
-    from runtime.common import write_text_atomic
+    from runtime.config import set_section
 
-    path = ws.config_path
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
-
-    def fmt(v: Any) -> str:
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        if isinstance(v, list):
-            return "[" + ", ".join(str(x) for x in v) + "]"
-        if v is None or v == "":
-            return '""'
-        return str(v)
-
-    lines = text.splitlines()
-    start = next((i for i, l in enumerate(lines) if re.match(r"^redpill:\s*$", l)), None)
-    if start is None:
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.append("redpill:")
-        start = len(lines) - 1
-    end = start + 1
-    while end < len(lines) and (lines[end].startswith(" ") or not lines[end].strip()):
-        end += 1
-    section = lines[start + 1:end]
-    for key, val in values.items():
-        line = f"  {key}: {fmt(val)}"
-        idx = next((i for i, l in enumerate(section) if re.match(rf"^\s+{re.escape(key)}:", l)), None)
-        if idx is None:
-            while section and not section[-1].strip():
-                section.pop()
-            section.append(line)
-        else:
-            section[idx] = line
-    lines[start + 1:end] = section + ([""] if end < len(lines) else [])
-    write_text_atomic(path, "\n".join(lines).rstrip("\n") + "\n")
+    set_section(ws.config_path, "redpill", values)

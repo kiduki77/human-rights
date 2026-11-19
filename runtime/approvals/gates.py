@@ -102,7 +102,8 @@ def _force(feature: Feature, st: Dict[str, Any], target: str, reason: str) -> No
     feature.emit("state_changed", **{"from": prev, "to": target, "reason": reason, "forced": True})
 
 
-def approve_design(feature: Feature, st: Dict[str, Any], by: str, scope: str, note: str) -> Dict[str, Any]:
+def approve_design(feature: Feature, st: Dict[str, Any], by: str, scope: str, note: str,
+                   proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from runtime.verification.plan_check import check_plan
 
     if not by:
@@ -124,6 +125,7 @@ def approve_design(feature: Feature, st: Dict[str, Any], by: str, scope: str, no
         "approver": by,
         "approved_at": now(),
         "via": "cli",
+        **(proof or {}),
         "scope": scope or "entire design",
         "note": note,
         "requirements_revision": feature.requirements().get("revision"),
@@ -132,13 +134,14 @@ def approve_design(feature: Feature, st: Dict[str, Any], by: str, scope: str, no
         "base_commit_sha": fp.get("commit_sha"),
     }
     ev = feature.emit("approval_granted", gate="design", approver=by, bundle_hash=record["bundle_hash"],
-                      actor=f"human:{by}")
+                      actor=f"human:{by}", **(proof or {}))
     record["event_hash"] = ev["hash"]
     st["approvals"]["design"] = record
     return record
 
 
-def approve_final(feature: Feature, st: Dict[str, Any], by: str, risks: str, note: str) -> Dict[str, Any]:
+def approve_final(feature: Feature, st: Dict[str, Any], by: str, risks: str, note: str,
+                  proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from runtime.verification import evidence, failures
 
     if not by:
@@ -164,6 +167,7 @@ def approve_final(feature: Feature, st: Dict[str, Any], by: str, risks: str, not
         "approver": by,
         "approved_at": now(),
         "via": "cli",
+        **(proof or {}),
         "commit_sha": fp["commit_sha"],
         "code_tree": fp["code_tree"],
         "tests": {"passed": len(summ["rows"]), "run_ids": [r["run"]["run_id"] for r in summ["rows"]]},
@@ -172,7 +176,7 @@ def approve_final(feature: Feature, st: Dict[str, Any], by: str, risks: str, not
         "note": note,
     }
     ev = feature.emit("approval_granted", gate="final", approver=by, commit_sha=fp["commit_sha"],
-                      code_tree=fp["code_tree"], actor=f"human:{by}")
+                      code_tree=fp["code_tree"], actor=f"human:{by}", **(proof or {}))
     record["event_hash"] = ev["hash"]
     st["approvals"]["final"] = record
     return record

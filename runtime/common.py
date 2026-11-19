@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 SCHEMA_VERSION = 1
-WORKFLOW_DIRNAME = ".workflow"
+WORKFLOW_DIRNAME = ".human-rights"
+LEGACY_DIRNAME = ".workflow"
+EXCLUDED_DIRS = (WORKFLOW_DIRNAME, LEGACY_DIRNAME)
+EXCLUDE_SPECS = tuple(f":(exclude){d}" for d in EXCLUDED_DIRS)
 
 
 class HRError(Exception):
@@ -102,7 +105,7 @@ def find_repo_root(start: Path) -> Path:
         return Path(top)
     cur = start.resolve()
     for cand in [cur, *cur.parents]:
-        if (cand / WORKFLOW_DIRNAME).is_dir():
+        if any((cand / d).is_dir() for d in EXCLUDED_DIRS):
             return cand
     return cur
 
@@ -123,12 +126,12 @@ def code_tree(root: Path) -> Optional[str]:
     listing = git(root, "ls-tree", "HEAD")
     if listing is None:
         return None
-    kept = [ln for ln in listing.splitlines() if ln.split("\t", 1)[-1] != WORKFLOW_DIRNAME]
+    kept = [ln for ln in listing.splitlines() if ln.split("\t", 1)[-1] not in EXCLUDED_DIRS]
     return sha256_bytes("\n".join(kept).encode("utf-8"))
 
 
 def dirty_paths(root: Path) -> List[str]:
-    out = git(root, "status", "--porcelain", "--untracked-files=all", "--", ".", f":(exclude){WORKFLOW_DIRNAME}")
+    out = git(root, "status", "--porcelain", "--untracked-files=all", "--", ".", *EXCLUDE_SPECS)
     if not out:
         return []
     return [ln[3:] for ln in out.splitlines() if ln.strip()]
@@ -138,13 +141,13 @@ def worktree_hash(root: Path) -> str:
     h = hashlib.sha256()
     try:
         diff = subprocess.run(
-            ["git", "diff", "HEAD", "--binary", "--", ".", f":(exclude){WORKFLOW_DIRNAME}"],
+            ["git", "diff", "HEAD", "--binary", "--", ".", *EXCLUDE_SPECS],
             cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         ).stdout
     except FileNotFoundError:
         diff = b""
     h.update(diff)
-    others = git(root, "ls-files", "--others", "--exclude-standard", "--", ".", f":(exclude){WORKFLOW_DIRNAME}") or ""
+    others = git(root, "ls-files", "--others", "--exclude-standard", "--", ".", *EXCLUDE_SPECS) or ""
     for rel in sorted(x for x in others.splitlines() if x):
         h.update(b"\0" + rel.encode("utf-8") + b"\0")
         p = root / rel
@@ -156,16 +159,46 @@ def worktree_hash(root: Path) -> str:
 def fingerprint(root: Path) -> Dict[str, Any]:
     if not is_git_repo(root) or head_sha(root) is None:
         return {"git": False, "commit_sha": None, "code_tree": None, "dirty": None, "dirty_paths": [],
-                "worktree_hash": None}
+                "worktree_hash": None, "root": str(root)}
     dirty = dirty_paths(root)
     return {
         "git": True,
+        "root": str(root),
         "commit_sha": head_sha(root),
         "code_tree": code_tree(root),
         "dirty": bool(dirty),
         "dirty_paths": dirty[:20],
         "worktree_hash": worktree_hash(root) if dirty else None,
     }
+
+
+_CHANGED_CACHE: Dict[Tuple[str, str, str], Optional[List[str]]] = {}
+
+
+def changed_files_since(root: Path, sha: str, head: Optional[str]) -> Optional[List[str]]:
+    if not sha or not head:
+        return None
+    key = (str(root), sha, head)
+    if key not in _CHANGED_CACHE:
+        if sha == head:
+            _CHANGED_CACHE[key] = []
+        elif git(root, "merge-base", "--is-ancestor", sha, head) is None:
+            _CHANGED_CACHE[key] = None
+        else:
+            out = git(root, "diff", "--name-only", sha, head, "--", ".", *EXCLUDE_SPECS)
+            _CHANGED_CACHE[key] = None if out is None else [x for x in out.splitlines() if x.strip()]
+    return _CHANGED_CACHE[key]
+
+
+def path_matches(path: str, patterns: List[str]) -> bool:
+    import fnmatch
+
+    path = path.replace("\\", "/")
+    for pat in patterns:
+        pat = pat.replace("\\", "/").rstrip("/")
+        if path == pat or path.startswith(pat + "/") or fnmatch.fnmatch(path, pat):
+            return True
+    return False
 
 
 def run_shell(command: str, cwd: Path, timeout: int) -> Tuple[int, bytes, float]:

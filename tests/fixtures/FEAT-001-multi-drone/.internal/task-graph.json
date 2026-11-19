@@ -39,7 +39,8 @@
         "TEST-012"
       ],
       "risk": "medium",
-      "human_review": "optional"
+      "human_review": "optional",
+      "changes_flow": true
     },
     {
       "id": "TASK-002",
@@ -85,7 +86,8 @@
         "TEST-002"
       ],
       "risk": "high",
-      "human_review": "required"
+      "human_review": "required",
+      "changes_flow": true
     },
     {
       "id": "TASK-003",
@@ -124,7 +126,8 @@
         "TEST-003"
       ],
       "risk": "high",
-      "human_review": "required"
+      "human_review": "required",
+      "changes_flow": false
     },
     {
       "id": "TASK-004",
@@ -164,7 +167,8 @@
         "TEST-004"
       ],
       "risk": "medium",
-      "human_review": "optional"
+      "human_review": "optional",
+      "changes_flow": false
     }
   ]
 }

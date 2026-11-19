@@ -135,6 +135,10 @@
           "parallel_safe": {
             "type": "boolean",
             "description": "false: never run this task in parallel with another"
+          },
+          "changes_flow": {
+            "type": "boolean",
+            "description": "true when the task changes an interface or how components interact; its document then needs a diagram"
           }
         },
         "additionalProperties": true,

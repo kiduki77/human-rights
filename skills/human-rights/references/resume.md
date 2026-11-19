@@ -1,6 +1,6 @@
 # Resuming across sessions
 
-`.workflow/` is the memory. Never trust what you remember from an earlier conversation. Reconcile the
+`.human-rights/` is the memory. Never trust what you remember from an earlier conversation. Reconcile the
 stored state with the real files, git, and GitHub.
 
 ## Procedure

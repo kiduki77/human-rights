@@ -98,11 +98,12 @@ def feature_metrics(feature: Feature) -> Dict[str, Any]:
     pc = check_plan(feature.requirements(), feature.task_graph(), feature.test_plan(), st.get("mode") or "L3")
     lenient = st.get("mode") in ("L0", "L1")
     results = feature.test_results()
+    tests_by_id = {t["id"]: t for t in feature.test_plan().get("tests", [])}
     must = [r for r in feature.requirements().get("requirements", []) if r.get("priority", "must") == "must"]
     covered = 0
     for r in must:
         tids = pc["coverage"].get(r["id"], {}).get("tests", [])
-        if tids and all(evidence.is_pass(evidence.status_at(results, tid, fp)["status"], lenient) for tid in tids):
+        if tids and all(evidence.is_pass(evidence.status_at(results, tid, fp, tests_by_id.get(tid))["status"], lenient) for tid in tids):
             covered += 1
 
     par = []

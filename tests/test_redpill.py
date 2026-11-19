@@ -76,7 +76,7 @@ class DesignDrillTest(RedpillBase):
 
         code, out = r.hr("approve", "design", "--by", "alice")
         self.assertEqual(code, 3)
-        self.assertIn("flag", out)
+        self.assertIn("tell the agent in chat", out)
         self.assertEqual(r.state()["state"], "awaiting_design_approval")
         self.assertIsNone(r.state()["approvals"]["design"])
 
@@ -144,7 +144,7 @@ class DesignDrillTest(RedpillBase):
         code, out = r.hr("approve", "design", "--by", "alice")
         self.assertEqual(code, 3)
         self.assertIn("인간", out)
-        self.assertIn("! .workflow/hr flag", out)
+        self.assertIn("채팅으로", out)
 
 
 class FinalDrillTest(RedpillBase):
@@ -207,12 +207,12 @@ class ConfigAndGuardTest(unittest.TestCase):
             r.cleanup()
 
     def test_agent_cannot_toggle_reveal_flag_or_edit_drill(self):
-        self.assertEqual(guard("Bash", command=".workflow/hr redpill off"), "deny")
-        self.assertEqual(guard("Bash", command=".workflow/hr redpill on --one-in 100"), "deny")
-        self.assertEqual(guard("Bash", command=".workflow/hr redpill reveal --by me"), "deny")
-        self.assertEqual(guard("Bash", command=".workflow/hr flag TEST-014 --by me"), "deny")
-        self.assertEqual(guard("Bash", command=".workflow/hr redpill status"), "allow")
-        self.assertEqual(guard("Write", file_path="C:/r/.workflow/features/FEAT-001-x/.internal/redpill.json"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr redpill off"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr redpill on --one-in 100"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr redpill reveal --by me"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr flag TEST-014 --by me"), "deny")
+        self.assertEqual(guard("Bash", command=".human-rights/hr redpill status"), "allow")
+        self.assertEqual(guard("Write", file_path="C:/r/.human-rights/features/FEAT-001-x/.internal/redpill.json"), "deny")
 
 
 if __name__ == "__main__":

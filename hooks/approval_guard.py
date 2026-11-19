@@ -7,9 +7,11 @@ HUMAN_ONLY = re.compile(
     r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
-    r"\.workflow[/\\]+features[/\\]+[^/\\]+[/\\]+\.internal[/\\]+"
-    r"(state\.json|test-results\.json|failures\.json|events\.jsonl|redpill\.json|logs[/\\])"
+    r"\.(?:human-rights|workflow)[/\\]+(?:features[/\\]+[^/\\]+[/\\]+\.internal[/\\]+"
+    r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill\.json|logs[/\\])"
+    r"|\.local[/\\]+prompts\.jsonl)"
 )
+QUOTE = re.compile(r"\s--quote(?:\s|=)")
 WRITE_HINT = re.compile(
     r"(>|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bcp\b|\bmv\b|\brm\b|\bdd\b|Set-Content|Add-Content|Out-File|"
     r"Copy-Item|Move-Item|Remove-Item|New-Item|\bopen\(|write_text|WriteAllText|\btruncate\b)",
@@ -39,10 +41,12 @@ def main() -> None:
     if tool in ("Bash", "PowerShell"):
         cmd = inp.get("command", "") or ""
         m = HUMAN_ONLY.search(cmd)
-        if m:
+        if m and not QUOTE.search(cmd):
             deny(
-                f"human-rights: `{m.group(1)}` is a human-only command. The agent cannot approve, record manual "
-                f"test results, or release an escalation. Ask the user to run it themselves: `! .workflow/hr {m.group(1)} ...`"
+                f"human-rights: `{m.group(1)}` is a human decision. Run it only on the human's chat message, "
+                f"with their exact words: `.human-rights/hr {m.group(1)} ... --quote \"<their words>\"`. "
+                "The runtime checks the quote against the message the human actually sent. "
+                "Without one, ask the human to decide in chat."
             )
         if PROTECTED.search(cmd) and WRITE_HINT.search(cmd):
             deny(

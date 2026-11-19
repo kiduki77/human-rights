@@ -21,7 +21,7 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    wf = repo_root() / ".workflow"
+    wf = repo_root() / ".human-rights"
     active = wf / "active.json"
     if not active.exists():
         return
@@ -34,8 +34,9 @@ def main() -> None:
         return
     print(
         f"[human-rights] active feature {fid} | mode {st.get('mode') or 'unclassified'} | state {st.get('state')}. "
-        f"To continue, run `/human-rights resume {fid.split('-')[0]}-{fid.split('-')[1]}` so stored state is reconciled "
-        "with the real git/GitHub state first. Approvals and manual test results are human-only."
+        f"To continue, run `/hrs:resume {'-'.join(fid.split('-')[:2])}` so stored state is reconciled "
+        "with the real git/GitHub state first. Approvals, flags, manual test results and unblocking are human "
+        "decisions: act on them only from the human's own chat message, through `hr ... --quote`."
     )
 
 
