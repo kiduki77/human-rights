@@ -431,7 +431,10 @@ def cmd_transition(ws: Workspace, args) -> int:
 
     f = _feature(ws, args)
     _revalidate(f)
+    before = f.id
     st = machine.transition(f, args.to, args.reason or "")
+    if f.id != before:
+        print(f"{before} is now {f.id}  ({f.dir})")
     print(f"{f.id}: -> {st['state']}")
     _after_child(ws, f, st)
     return 0
@@ -1192,10 +1195,33 @@ def cmd_redpill(ws: Workspace, args) -> int:
     return 0
 
 
+def cmd_migrate(ws: Workspace, args) -> int:
+    ws.require_init()
+    from runtime import groups
+
+    moves = groups.migrate(ws, dry_run=args.dry_run)
+    if not moves:
+        print("layout is current: groups are under groups/GRP-*, each with its features inside")
+        return 0
+    print("would move:" if args.dry_run else "moved:")
+    for m in moves:
+        print(f"  {m}")
+    return 0
+
+
+def _layout_hint(ws: Workspace) -> None:
+    from runtime import groups
+
+    if groups.migration_plan(ws):
+        print("! this workspace uses the old layout (groups stored as FEAT-* next to their features). "
+              "`hr migrate --dry-run` shows the moves, `hr migrate` applies them.")
+
+
 def cmd_list(ws: Workspace, args) -> int:
     ws.require_init()
     from runtime import groups
 
+    _layout_hint(ws)
     active = ws.active_feature_id()
     for row in groups.tree(ws):
         fid, st = row["feature_id"], row["state"]
@@ -1212,7 +1238,7 @@ def build_parser() -> argparse.ArgumentParser:
     def add(name: str, fn, help_: str, feature: bool = True) -> argparse.ArgumentParser:
         sp = sub.add_parser(name, help=help_)
         if feature:
-            sp.add_argument("-f", "--feature", help="FEAT-NNN (default: active feature)")
+            sp.add_argument("-f", "--feature", help="FEAT-NNN or GRP-NNN (default: active feature)")
         sp.set_defaults(fn=fn)
         return sp
 
@@ -1243,7 +1269,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true")
     sp = add("status", cmd_status, "current status")
     sp.add_argument("--json", action="store_true")
-    add("list", cmd_list, "list features", feature=False)
+    add("list", cmd_list, "list groups and features", feature=False)
+    sp = add("migrate", cmd_migrate, "move an older workspace to the current layout (groups/GRP-*/features/FEAT-*)",
+             feature=False)
+    sp.add_argument("--dry-run", action="store_true")
     add("resume", cmd_resume, "reconcile stored state with real git/GitHub state, then resume")
     sp = add("transition", cmd_transition, "state transition (guarded)")
     sp.add_argument("to")

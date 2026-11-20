@@ -4,7 +4,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 from runtime.common import GateError, HRError, canonical, now, sha256_bytes
-from runtime.state.store import Feature, new_state
+from runtime.state.store import (CONTAINERS, FEATURE_PREFIX, GROUP_PREFIX, Feature, id_order, id_prefix, new_state,
+                                 with_prefix)
 
 KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 SIZES = ("single", "compound")
@@ -16,6 +17,69 @@ MAX_CHILDREN_HINT = 12
 
 def is_group(st: Dict[str, Any]) -> bool:
     return st.get("kind") == "group"
+
+
+def prefix_for(st: Dict[str, Any]) -> str:
+    return GROUP_PREFIX if is_group(st) else FEATURE_PREFIX
+
+
+def place(feature: Feature, st: Dict[str, Any]) -> bool:
+    want = prefix_for(st)
+    if id_prefix(feature.id) == want:
+        return False
+    new_id = with_prefix(feature.id, want)
+    feature.relocate(new_id, feature.dir.parent.parent / CONTAINERS[want] / new_id)
+    return True
+
+
+def migration_plan(ws: Any) -> List[Dict[str, Any]]:
+    dirs = ws.locations()
+    states = {fid: Feature(ws, fid, d).load("state") or {} for fid, d in dirs.items()}
+    parent_of: Dict[str, str] = {}
+    for fid, st in states.items():
+        if is_group(st):
+            for link in st.get("children") or []:
+                if link.get("feature_id") in states:
+                    parent_of[link["feature_id"]] = fid
+    targets: Dict[str, Any] = {}
+
+    def target(fid: str, seen: tuple = ()) -> Any:
+        if fid in targets:
+            return targets[fid]
+        want = prefix_for(states[fid])
+        new_id = with_prefix(fid, want)
+        pid = parent_of.get(fid)
+        if pid and pid not in seen:
+            holder = target(pid, seen + (fid,))["dir"]
+        else:
+            holder = dirs[fid].parent.parent
+        targets[fid] = {"id": new_id, "dir": holder / CONTAINERS[want] / new_id}
+        return targets[fid]
+
+    def depth(fid: str) -> int:
+        n, cur, seen = 0, fid, set()
+        while cur in parent_of and cur not in seen:
+            seen.add(cur)
+            cur = parent_of[cur]
+            n += 1
+        return n
+
+    plan = []
+    for fid in sorted(dirs, key=lambda f: (depth(f), id_order(f))):
+        tgt = target(fid)
+        if tgt["id"] != fid or tgt["dir"] != dirs[fid]:
+            plan.append({"feature_id": fid, "new_id": tgt["id"], "from": dirs[fid], "to": tgt["dir"]})
+    return plan
+
+
+def migrate(ws: Any, dry_run: bool = False) -> List[str]:
+    out = []
+    for step in migration_plan(ws):
+        feature = Feature(ws, step["feature_id"])
+        out.append(f"{step['from'].relative_to(ws.wf).as_posix()} -> {step['to'].relative_to(ws.wf).as_posix()}")
+        if not dry_run and (feature.dir != step["to"] or feature.id != step["new_id"]):
+            feature.relocate(step["new_id"], step["to"])
+    return out
 
 
 def split_of(feature: Feature) -> Dict[str, Any]:
@@ -203,7 +267,7 @@ def sync_children(feature: Feature, st: Dict[str, Any]) -> Dict[str, List[str]]:
         if key in known:
             continue
         fid = ws.next_feature_id(key)
-        child = Feature(ws, fid)
+        child = Feature(ws, fid, feature.child_dir(fid))
         for sub in ("tasks", "details", ".internal"):
             (child.dir / sub).mkdir(parents=True, exist_ok=True)
         cst = new_state(fid, c["title"], c["outcome"])
@@ -329,9 +393,9 @@ def tree(ws: Any) -> List[Dict[str, Any]]:
 
     def walk(fid: str, depth: int) -> None:
         out.append({"feature_id": fid, "depth": depth, "state": states[fid]})
-        for c in sorted(kids.get(fid, [])):
+        for c in sorted(kids.get(fid, []), key=id_order):
             walk(c, depth + 1)
 
-    for fid in sorted(kids.get(None, [])):
+    for fid in sorted(kids.get(None, []), key=id_order):
         walk(fid, 0)
     return out

@@ -29,7 +29,8 @@ def main() -> None:
         fid = json.loads(active.read_text(encoding="utf-8")).get("feature_id")
         if not fid:
             return
-        st = json.loads((wf / "features" / fid / ".internal" / "state.json").read_text(encoding="utf-8"))
+        found = sorted(wf.glob(f"**/{fid}/.internal/state.json"), key=lambda p: len(p.parts))
+        st = json.loads(found[0].read_text(encoding="utf-8"))
     except Exception:
         return
     print(

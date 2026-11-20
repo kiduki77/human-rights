@@ -231,7 +231,7 @@ def settings(ws: Workspace) -> Dict[str, Any]:
 def workspace_history(ws: Workspace) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for fid in ws.list_features():
-        data = read_json(ws.features_dir / fid / ".internal" / "redpill.json", None) or {}
+        data = read_json(ws.dir_of(fid) / ".internal" / "redpill.json", None) or {}
         out += data.get("history", [])
     return sorted(out, key=lambda h: h.get("ended_at") or "")
 

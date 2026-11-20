@@ -29,10 +29,12 @@ hr
 hr.cmd
 *.lock
 .local/
-features/*/.internal/logs/
-features/*/.internal/cache/
-features/*/evidence/
+**/.internal/logs/
+**/.internal/cache/
+**/evidence/
 """
+
+GITIGNORE_REQUIRED = (".local/", "**/.internal/logs/", "**/.internal/cache/", "**/evidence/")
 
 INTERNAL_FILES = {
     "state": "state.json",
@@ -47,7 +49,28 @@ INTERNAL_FILES = {
 LOCK_STALE_AFTER = 30
 LOCK_HEARTBEAT = 5
 
-FEATURE_ID_RE = re.compile(r"^FEAT-(\d{3,})(?:-[a-z0-9][a-z0-9-]*)?$")
+FEATURE_PREFIX = "FEAT"
+GROUP_PREFIX = "GRP"
+CONTAINERS = {FEATURE_PREFIX: "features", GROUP_PREFIX: "groups"}
+FEATURE_ID_RE = re.compile(r"^(FEAT|GRP)-(\d{3,})(?:-[a-z0-9][a-z0-9-]*)?$")
+
+
+def id_prefix(fid: str) -> str:
+    m = FEATURE_ID_RE.match(fid)
+    return m.group(1) if m else FEATURE_PREFIX
+
+
+def id_number(fid: str) -> int:
+    m = FEATURE_ID_RE.match(fid)
+    return int(m.group(2)) if m else 0
+
+
+def with_prefix(fid: str, prefix: str) -> str:
+    return prefix + fid[len(id_prefix(fid)):]
+
+
+def id_order(fid: str):
+    return (id_number(fid), fid)
 
 
 def slugify(text: str) -> str:
@@ -60,6 +83,7 @@ class Workspace:
         self.root = root
         self.wf = root / WORKFLOW_DIRNAME
         self.features_dir = self.wf / "features"
+        self.groups_dir = self.wf / "groups"
         self.config_path = self.wf / "config.yaml"
         self.active_path = self.wf / "active.json"
 
@@ -108,8 +132,9 @@ class Workspace:
         gi = self.wf / ".gitignore"
         if gi.exists():
             text = gi.read_text(encoding="utf-8")
-            if ".local/" not in text.splitlines():
-                write_text_atomic(gi, text.rstrip("\n") + "\n.local/\n")
+            missing = [line for line in GITIGNORE_REQUIRED if line not in text.splitlines()]
+            if missing:
+                write_text_atomic(gi, text.rstrip("\n") + "\n" + "\n".join(missing) + "\n")
         entry = HR_ENTRY.as_posix()
         sh = (
             "#!/bin/sh\n"
@@ -127,14 +152,31 @@ class Workspace:
         except OSError:
             pass
 
+    def locations(self) -> Dict[str, Path]:
+        found: Dict[str, Path] = {}
+
+        def walk(base: Path) -> None:
+            for sub in CONTAINERS.values():
+                holder = base / sub
+                if not holder.is_dir():
+                    continue
+                for p in sorted(holder.iterdir()):
+                    if p.is_dir() and FEATURE_ID_RE.match(p.name):
+                        found.setdefault(p.name, p)
+                        walk(p)
+
+        walk(self.wf)
+        return found
+
+    def dir_of(self, fid: str) -> Path:
+        return self.locations().get(fid) or self.wf / CONTAINERS[id_prefix(fid)] / fid
+
     def list_features(self) -> List[str]:
-        if not self.features_dir.is_dir():
-            return []
-        return sorted(p.name for p in self.features_dir.iterdir() if p.is_dir() and FEATURE_ID_RE.match(p.name))
+        return sorted(self.locations(), key=id_order)
 
     def next_feature_id(self, slug: str) -> str:
-        nums = [int(FEATURE_ID_RE.match(f).group(1)) for f in self.list_features()]
-        return f"FEAT-{(max(nums) + 1 if nums else 1):03d}-{slugify(slug)}"
+        nums = [id_number(f) for f in self.list_features()]
+        return f"{FEATURE_PREFIX}-{(max(nums) + 1 if nums else 1):03d}-{slugify(slug)}"
 
     def active_feature_id(self) -> Optional[str]:
         data = read_json(self.active_path, {}) or {}
@@ -148,8 +190,11 @@ class Workspace:
         if not fid:
             fid = self.active_feature_id()
             if not fid:
-                raise HRError("No active feature. Pass `-f FEAT-NNN`.")
-        matches = [f for f in self.list_features() if f == fid or f.startswith(fid + "-")]
+                raise HRError("No active feature. Pass `-f FEAT-NNN` or `-f GRP-NNN`.")
+        known = self.list_features()
+        matches = [f for f in known if f == fid or f.startswith(fid + "-")]
+        if not matches and FEATURE_ID_RE.match(fid):
+            matches = [f for f in known if id_number(f) == id_number(fid)]
         if len(matches) != 1:
             raise HRError(f"Feature not found or ambiguous: {fid} (known: {', '.join(self.list_features()) or 'none'})")
         return Feature(self, matches[0])
@@ -195,13 +240,67 @@ class Workspace:
 
 
 class Feature:
-    def __init__(self, ws: Workspace, fid: str):
+    def __init__(self, ws: Workspace, fid: str, directory: Optional[Path] = None):
         self.ws = ws
+        self.bind(fid, directory or ws.dir_of(fid))
+
+    def bind(self, fid: str, directory: Path) -> None:
         self.id = fid
-        self.dir = ws.features_dir / fid
+        self.dir = directory
         self.internal = self.dir / ".internal"
         self.events_path = self.internal / "events.jsonl"
         self.logs_dir = self.internal / "logs"
+
+    def child_dir(self, fid: str) -> Path:
+        return self.dir / CONTAINERS[id_prefix(fid)] / fid
+
+    def relocate(self, new_id: str, new_dir: Path) -> None:
+        ws = self.ws
+        old_id, old_dir = self.id, self.dir
+        if new_dir == old_dir and new_id == old_id:
+            return
+        if new_dir.exists():
+            raise HRError(f"cannot move {old_id}: {new_dir} already exists")
+        old_rel = old_dir.relative_to(ws.root).as_posix() + "/"
+        new_rel = new_dir.relative_to(ws.root).as_posix() + "/"
+        new_dir.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            old_dir.rename(new_dir)
+        except OSError as exc:
+            raise HRError(f"cannot move {old_dir} to {new_dir}: {exc} (close anything that has files open there)")
+        self.bind(new_id, new_dir)
+        for path in new_dir.rglob("*.json"):
+            if path.parent.name != ".internal":
+                continue
+            text = path.read_text(encoding="utf-8")
+            if old_rel in text:
+                write_text_atomic(path, text.replace(old_rel, new_rel))
+        if new_id == old_id:
+            self.emit("moved", **{"from": old_rel.rstrip("/"), "to": new_rel.rstrip("/")})
+            return
+        st = self.state()
+        st["feature_id"] = new_id
+        self.save_state(st)
+        for other in ws.list_features():
+            if other == new_id:
+                continue
+            ofeat = Feature(ws, other)
+            ost = ofeat.load("state")
+            if not ost:
+                continue
+            changed = False
+            if ost.get("parent") == old_id:
+                ost["parent"] = new_id
+                changed = True
+            for link in ost.get("children") or []:
+                if link.get("feature_id") == old_id:
+                    link["feature_id"] = new_id
+                    changed = True
+            if changed:
+                ofeat.save("state", ost)
+        if ws.active_feature_id() == old_id:
+            ws.set_active(new_id)
+        self.emit("renamed", **{"from": old_id, "to": new_id, "path": new_rel.rstrip("/")})
 
     def path(self, key: str) -> Path:
         return self.internal / INTERNAL_FILES[key]

@@ -218,6 +218,11 @@ def _group_guards(feature: Feature, st: Dict[str, Any], cur: str, target: str) -
     from runtime.verification import failures
 
     problems: List[str] = []
+    if cur == "splitting" and target in ("clarifying", "investigating"):
+        left = groups.unfinished(feature, st)
+        if left:
+            problems.append("this group already has features - cancel them before turning it back into one "
+                            "feature: " + ", ".join(left))
     if cur == "splitting" and target == "awaiting_split_approval":
         problems += [f"[split] {p}" for p in groups.check_split(feature)["hard_fail"]]
         if not (feature.dir / "overview.md").exists():
@@ -254,6 +259,7 @@ def transition(feature: Feature, target: str, reason: str = "", actor: str = "ag
     if problems:
         raise GateError(f"{st['state']} -> {target} blocked:\n  - " + "\n  - ".join(problems))
     prev = st["state"]
+    kind = st.get("kind")
     if target == "blocked":
         st["state_before_block"] = prev
         st["block_reason"] = reason or "no reason given"
@@ -270,6 +276,11 @@ def transition(feature: Feature, target: str, reason: str = "", actor: str = "ag
     st["state"] = target
     feature.save_state(st)
     feature.emit("state_changed", **{"from": prev, "to": target, "reason": reason, "actor": actor})
+    if st.get("kind") != kind:
+        from runtime import groups
+
+        if groups.place(feature, st):
+            st = feature.state()
     _redpill_hooks(feature, prev, target)
     if target == "awaiting_split_approval":
         from runtime import docs

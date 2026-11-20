@@ -100,6 +100,16 @@ def _node_label(text: Any) -> str:
     return re.sub(r"[\[\]{}()\"|<>`]", " ", str(text or "")).strip()
 
 
+def _child_link(feature: Feature, child_id: str) -> str:
+    import os
+
+    overview = feature.ws.dir_of(child_id) / "overview.md"
+    if not overview.is_file():
+        return child_id
+    rel = os.path.relpath(str(overview), str(feature.dir)).replace(os.sep, "/")
+    return f"[{child_id}]({rel})"
+
+
 def features_block(feature: Feature) -> str:
     from runtime import groups
     from runtime.state.machine import STATE_LABELS
@@ -134,7 +144,7 @@ def features_block(feature: Feature) -> str:
         link = linked.get(c.get("key"))
         name = f"**{_cell(c.get('title'))}** (`{c.get('key')}`)"
         if link:
-            name += f"<br>{link['feature_id']}"
+            name += f"<br>{_child_link(feature, link['feature_id'])}"
         cells = [str(i), name, _cell(c.get("outcome")), _cell(c.get("verify_alone")),
                  ", ".join(c.get("depends_on", []) or []) or "-"]
         if with_sources:

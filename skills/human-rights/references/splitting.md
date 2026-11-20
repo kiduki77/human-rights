@@ -29,7 +29,9 @@ When to decide:
 - **Obviously compound requests** (a specification document, "build the admin area") don't need axis scores
   first: `hr size compound --reason "..."`, then `hr transition splitting`.
 
-A compound request cannot go on to `planning`. `hr transition splitting` turns the feature into a group.
+A compound request cannot go on to `planning`. `hr transition splitting` turns the feature into a group:
+`FEAT-NNN-slug` becomes `GRP-NNN-slug` and its directory moves to `.human-rights/groups/`. `hr` prints the
+new id and path. Use them from then on (the old id still resolves).
 
 ## Writing the split
 
@@ -106,7 +108,9 @@ already answers.
    merge, add or reorder: `hr reject split --reason "..." --quote "<their words>"`, change `split.json`, ask
    again. The scope of the work is the human's decision.
 
-Approval creates one feature per entry, in state `proposed`, and the group moves to `delivering`.
+Approval creates one feature per entry, in state `proposed`, inside the group's own `features/`
+directory, and the group moves to `delivering`. The group overview links to each feature's `overview.md`
+once that file exists.
 
 ## Delivering
 
@@ -115,7 +119,8 @@ Approval creates one feature per entry, in state `proposed`, and the group moves
 - Copy the shared decisions into the feature's `requirements.json` with `decided_by: "group"`. Don't ask
   them again.
 - The feature then runs the normal workflow from §3: probe, classify (including its own size), and its own
-  approvals. Its tests must include what `verify_alone` promised.
+  approvals. Its tests must include what `verify_alone` promised. A feature judged compound becomes a group
+  inside its parent (`groups/<GRP-id>/groups/<GRP-id>/`).
 - One feature at a time by default (`groups.max_active_children`). The human's review is the bottleneck,
   so opening several only queues approvals.
 - When a feature completes, `hr` says what is next. `hr list` shows the tree.

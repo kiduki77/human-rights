@@ -1,6 +1,6 @@
 ---
 name: hr-plan-reviewer
-description: Independent reviewer for an hrs plan before it goes to human approval. Give it only the feature directory path (.human-rights/features/FEAT-...). It reads the plan files from disk and reports hard fails, weaknesses, and document problems. It never edits files and never records workflow state.
+description: Independent reviewer for an hrs plan before it goes to human approval. Give it only the feature or group directory path, as `hr` prints it (.human-rights/features/FEAT-... or .human-rights/groups/GRP-...). It reads the plan files from disk and reports hard fails, weaknesses, and document problems. It never edits files and never records workflow state.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---

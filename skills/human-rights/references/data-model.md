@@ -1,6 +1,9 @@
 # Data model: the files you write and the files the runtime writes
 
-Location: `.human-rights/features/<FEAT-id>/.internal/`. Schemas: the plugin's `schemas/*.schema.json`.
+Location: `<feature or group directory>/.internal/`. A feature on its own is at
+`.human-rights/features/<FEAT-id>/`, a group at `.human-rights/groups/<GRP-id>/`, and a group's features
+inside it at `groups/<GRP-id>/features/<FEAT-id>/` (see [Groups](#groups)). Take the path from what `hr`
+prints, not from a pattern. Schemas: the plugin's `schemas/*.schema.json`.
 `hr check` validates them when `pip install jsonschema` is available.
 The machine-readable JSON drives execution. The human-facing Markdown is a rendering of it. Don't hand-copy
 the same fact into several places.
@@ -38,6 +41,27 @@ A group (a compound request) has `kind: "group"` in `state.json` and two files y
 
 The runtime writes the rest: `children` (key to feature id), `approvals.split`, and on each created feature
 `parent` and `group_key`. A feature records its size decision in `size`.
+
+Where a group lives, and what it is called:
+
+```text
+.human-rights/
+├── features/FEAT-012-fix-typo/          a feature on its own
+└── groups/GRP-001-login/                a group: overview.md, split.json, the group checks
+    ├── features/FEAT-002-signup/        its features, each with the usual files
+    ├── features/FEAT-003-login/
+    └── groups/GRP-004-reset/            a feature of the group that was split again
+        └── features/FEAT-005-reset-by-email/
+```
+
+- `hr transition splitting` renames the feature from `FEAT-NNN-slug` to `GRP-NNN-slug` and moves its
+  directory under `groups/`. Going back from `splitting` to `clarifying` or `investigating` reverses both.
+  The number is kept, and numbers are never shared between a `FEAT-` and a `GRP-`, so `-f FEAT-001` still
+  finds `GRP-001-login`.
+- Events written before the rename keep the old id. A `renamed` event records the change, and a `moved`
+  event records a directory move without a rename.
+- A workspace created before this layout keeps working. `hr list` says so, and `hr migrate` moves it
+  (`--dry-run` shows the moves first).
 
 ## Minimal examples
 

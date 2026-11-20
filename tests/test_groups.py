@@ -40,7 +40,10 @@ class GroupBase(unittest.TestCase):
         self.r = Repo()
         self.r.hr("init")
         self.r.hr("new", "Add login", "--slug", "login")
-        self.gdir = self.r.feature_dir("FEAT-001")
+
+    @property
+    def gdir(self):
+        return self.r.feature_dir("FEAT-001")
 
     def tearDown(self):
         self.r.cleanup()
@@ -102,8 +105,29 @@ class SizeDecisionTest(GroupBase):
         code, out = r.hr("transition", "planning")
         self.assertEqual(code, 3)
         self.assertIn("judged compound", out)
-        self.assertEqual(r.hr("transition", "splitting")[0], 0)
-        self.assertEqual(r.state()["kind"], "group")
+        code, out = r.hr("transition", "splitting")
+        self.assertEqual(code, 0, out)
+        self.assertIn("FEAT-001-login is now GRP-001-login", out)
+        st = r.state()
+        self.assertEqual((st["kind"], st["feature_id"]), ("group", "GRP-001-login"))
+        wf = r.root / ".human-rights"
+        self.assertTrue((wf / "groups" / "GRP-001-login" / ".internal" / "state.json").is_file())
+        self.assertFalse((wf / "features" / "FEAT-001-login").exists())
+        self.assertEqual(json.loads((wf / "active.json").read_text(encoding="utf-8"))["feature_id"], "GRP-001-login")
+        problems = [line for line in r.hr("check")[1].splitlines() if line.startswith("  - ")]
+        self.assertEqual(problems, ["  - [docs] overview.md is missing"])
+
+    def test_a_group_with_no_features_can_become_one_feature_again(self):
+        r = self.r
+        r.hr("size", "compound", "--reason", "looked like three results")
+        r.hr("transition", "splitting")
+        code, out = r.hr("transition", "clarifying")
+        self.assertEqual(code, 0, out)
+        self.assertIn("GRP-001-login is now FEAT-001-login", out)
+        wf = r.root / ".human-rights"
+        self.assertTrue((wf / "features" / "FEAT-001-login" / ".internal" / "state.json").is_file())
+        self.assertFalse((wf / "groups" / "GRP-001-login").exists())
+        self.assertEqual(r.state()["kind"], "feature")
 
     def test_reclassify_after_clarifying_asks_for_the_size_again(self):
         r = self.r
@@ -180,52 +204,56 @@ class GroupFlowTest(GroupBase):
         out = self.approve()
         self.assertIn("created: FEAT-002-signup", out)
         r = self.r
-        self.assertEqual(r.state("FEAT-001")["state"], "delivering")
+        self.assertEqual(r.state("GRP-001")["state"], "delivering")
         self.assertEqual(r.state("FEAT-003")["state"], "proposed")
-        self.assertEqual(r.state("FEAT-003")["parent"], "FEAT-001-login")
+        self.assertEqual(r.state("FEAT-003")["parent"], "GRP-001-login")
+        group = r.root / ".human-rights" / "groups" / "GRP-001-login"
+        self.assertEqual(sorted(p.name for p in (group / "features").iterdir()),
+                         ["FEAT-002-signup", "FEAT-003-login", "FEAT-004-reset"])
+        self.assertFalse((r.root / ".human-rights" / "features" / "FEAT-002-signup").exists())
 
         code, out = r.hr("start", "-f", "FEAT-003")
         self.assertEqual(code, 3, out)
         self.assertIn("depends on signup", out)
 
-        code, out = r.hr("start", "-f", "FEAT-001")
+        code, out = r.hr("start", "-f", "GRP-001")
         self.assertEqual(code, 0, out)
         self.assertIn("FEAT-002-signup started", out)
         self.assertIn("group decision GDEC-001: How is a session kept? -> Server-side session cookie", out)
         self.assertEqual(r.state("FEAT-002")["state"], "triaging")
 
         code, out = r.hr("list")
-        self.assertIn("  FEAT-001-login  group  delivering", out)
+        self.assertIn("  GRP-001-login  group  delivering", out)
         self.assertIn("*   FEAT-002-signup", out)
 
     def test_one_feature_at_a_time_then_group_checks(self):
         self.approve()
         r = self.r
-        r.hr("start", "-f", "FEAT-001")
-        code, out = r.hr("transition", "-f", "FEAT-001", "integrating")
+        r.hr("start", "-f", "GRP-001")
+        code, out = r.hr("transition", "-f", "GRP-001", "integrating")
         self.assertEqual(code, 3, out)
         self.assertIn("features not finished", out)
 
         out = self.finish("FEAT-002")
         self.assertIn("2 feature(s) left", out)
-        r.hr("start", "-f", "FEAT-001")
+        r.hr("start", "-f", "GRP-001")
         self.assertEqual(r.state("FEAT-003")["state"], "triaging")
         code, out = r.hr("start", "-f", "FEAT-004")
         self.assertEqual(code, 3, out)
         self.assertIn("still in progress", out)
 
         self.finish("FEAT-003")
-        r.hr("start", "-f", "FEAT-001")
+        r.hr("start", "-f", "GRP-001")
         out = self.finish("FEAT-004")
         self.assertIn("every feature is finished", out)
 
-        self.assertEqual(r.hr("transition", "-f", "FEAT-001", "integrating")[0], 0)
-        code, out = r.hr("transition", "-f", "FEAT-001", "completed")
+        self.assertEqual(r.hr("transition", "-f", "GRP-001", "integrating")[0], 0)
+        code, out = r.hr("transition", "-f", "GRP-001", "completed")
         self.assertEqual(code, 3, out)
         self.assertIn("GTEST-001 = not_run", out)
         r.commit("work")
-        self.assertEqual(r.hr("verify", "-f", "FEAT-001")[0], 0)
-        code, out = r.hr("transition", "-f", "FEAT-001", "completed")
+        self.assertEqual(r.hr("verify", "-f", "GRP-001")[0], 0)
+        code, out = r.hr("transition", "-f", "GRP-001", "completed")
         self.assertEqual(code, 0, out)
 
     def test_changing_the_split_after_approval_needs_approval_again(self):
@@ -240,14 +268,14 @@ class GroupFlowTest(GroupBase):
         plan = json.loads(json.dumps(GROUP_PLAN))
         plan["tests"][0]["children"] = ["signup", "login", "logout"]
         self.write("test-plan.json", plan)
-        code, out = r.hr("status", "-f", "FEAT-001")
+        code, out = r.hr("status", "-f", "GRP-001")
         self.assertIn("split approval invalidated", out)
-        self.assertEqual(r.state("FEAT-001")["state"], "splitting")
+        self.assertEqual(r.state("GRP-001")["state"], "splitting")
         code, out = r.hr("start", "-f", "FEAT-002")
         self.assertEqual(code, 3, out)
 
-        r.hr("transition", "-f", "FEAT-001", "awaiting_split_approval")
-        code, out = r.hr("approve", "split", "-f", "FEAT-001", "--by", "alice")
+        r.hr("transition", "-f", "GRP-001", "awaiting_split_approval")
+        code, out = r.hr("approve", "split", "-f", "GRP-001", "--by", "alice")
         self.assertEqual(code, 0, out)
         self.assertIn("created: FEAT-005-logout", out)
         self.assertIn("cancelled: FEAT-004-reset", out)
@@ -256,13 +284,34 @@ class GroupFlowTest(GroupBase):
     def test_a_child_can_split_again(self):
         self.approve()
         r = self.r
-        r.hr("start", "-f", "FEAT-001")
+        r.hr("start", "-f", "GRP-001")
         r.hr("size", "-f", "FEAT-002", "compound", "--reason", "email sign up and invite sign up")
         self.assertEqual(r.hr("transition", "-f", "FEAT-002", "splitting")[0], 0)
         st = r.state("FEAT-002")
-        self.assertEqual((st["kind"], st["parent"]), ("group", "FEAT-001-login"))
+        self.assertEqual((st["kind"], st["parent"]), ("group", "GRP-001-login"))
+        group = r.root / ".human-rights" / "groups" / "GRP-001-login"
+        self.assertTrue((group / "groups" / "GRP-002-signup" / ".internal" / "state.json").is_file())
+        self.assertEqual(r.state("GRP-001")["children"][0], {"key": "signup", "feature_id": "GRP-002-signup"})
         code, out = r.hr("list")
-        self.assertIn("  FEAT-002-signup  group  splitting", out)
+        self.assertIn("  GRP-002-signup  group  splitting", out)
+
+    def test_a_group_with_features_cannot_become_one_feature(self):
+        self.approve()
+        r = self.r
+        more = json.loads(json.dumps(SPLIT))
+        more["summary"] = "Account access, revised"
+        self.write("split.json", more)
+        r.hr("status", "-f", "GRP-001")
+        self.assertEqual(r.state("GRP-001")["state"], "splitting")
+        code, out = r.hr("transition", "-f", "GRP-001", "clarifying")
+        self.assertEqual(code, 3, out)
+        self.assertIn("already has features", out)
+
+    def test_the_old_feat_id_still_finds_the_group(self):
+        self.approve()
+        code, out = self.r.hr("status", "-f", "FEAT-001")
+        self.assertEqual(code, 0, out)
+        self.assertIn("GRP-001-login", out)
 
     def test_split_approval_comes_from_chat(self):
         r = self.r
@@ -272,7 +321,7 @@ class GroupFlowTest(GroupBase):
         self.assertIn("approval of the split into features", hint)
         code, out = r.hr("approve", "split", "--quote", "승인할게")
         self.assertEqual(code, 0, out)
-        r.hr("transition", "-f", "FEAT-001", "splitting")
+        r.hr("transition", "-f", "GRP-001", "splitting")
 
     def test_rejecting_the_split_goes_back_to_splitting(self):
         r = self.r
@@ -287,11 +336,16 @@ class GroupDocsTest(GroupBase):
     def test_overview_shows_features_decisions_and_exclusions(self):
         self.approve()
         r = self.r
-        r.hr("render", "-f", "FEAT-001")
+        r.hr("render", "-f", "GRP-001")
         text = (self.gdir / "overview.md").read_text(encoding="utf-8")
         self.assertIn("flowchart LR", text)
         self.assertIn("f1 --> f2", text)
         self.assertIn("| 2 | **Log in** (`login`)<br>FEAT-003-login |", text)
+        child = r.feature_dir("FEAT-003")
+        (child / "overview.md").write_text("# Log in\n", encoding="utf-8")
+        r.hr("render", "-f", "GRP-001")
+        text = (self.gdir / "overview.md").read_text(encoding="utf-8")
+        self.assertIn("<br>[FEAT-003-login](features/FEAT-003-login/overview.md) |", text)
         self.assertIn("| GDEC-001 | How is a session kept? | Server-side session cookie | you |", text)
         self.assertIn("| Social login | Not requested for this release | - |", text)
         self.assertIn("| signup, login, reset | GTEST-001", text)
@@ -300,7 +354,7 @@ class GroupDocsTest(GroupBase):
             if line.startswith("[FILL") or "[FILL" in line:
                 text = text.replace(line, "filled in")
         (self.gdir / "overview.md").write_text(text, encoding="utf-8")
-        code, out = r.hr("doc-check", "-f", "FEAT-001")
+        code, out = r.hr("doc-check", "-f", "GRP-001")
         self.assertEqual(code, 0, out)
 
     def test_unread_parts_of_a_document_are_listed_for_the_human(self):
@@ -335,6 +389,61 @@ class GroupDocsTest(GroupBase):
             self.assertIn("요청에 있지만 여기서 만들지 않는 것", text)
         finally:
             r.cleanup()
+
+
+class MigrationTest(GroupBase):
+    def old_layout(self):
+        r = self.r
+        wf = r.root / ".human-rights"
+        group = wf / "groups" / "GRP-001-login"
+        for child in sorted((group / "features").iterdir()):
+            st = json.loads((child / ".internal" / "state.json").read_text(encoding="utf-8"))
+            st["parent"] = "FEAT-001-login"
+            (child / ".internal" / "state.json").write_text(json.dumps(st), encoding="utf-8")
+            child.rename(wf / "features" / child.name)
+        (group / "features").rmdir()
+        st = json.loads((group / ".internal" / "state.json").read_text(encoding="utf-8"))
+        st["feature_id"] = "FEAT-001-login"
+        (group / ".internal" / "state.json").write_text(json.dumps(st), encoding="utf-8")
+        group.rename(wf / "features" / "FEAT-001-login")
+        (wf / "groups").rmdir()
+        (wf / "active.json").write_text(json.dumps({"feature_id": "FEAT-001-login"}), encoding="utf-8")
+        return wf
+
+    def test_an_old_workspace_keeps_working_and_migrates(self):
+        self.approve()
+        r = self.r
+        integrity = r.hr("check", "-f", "GRP-001")[1]
+        self.assertNotIn("event", integrity)
+        wf = self.old_layout()
+        code, out = r.hr("list")
+        self.assertEqual(code, 0, out)
+        self.assertIn("old layout", out)
+        self.assertIn("* FEAT-001-login  group  delivering", out)
+
+        code, out = r.hr("migrate", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("features/FEAT-001-login -> groups/GRP-001-login", out)
+        self.assertIn("features/FEAT-003-login -> groups/GRP-001-login/features/FEAT-003-login", out)
+        self.assertTrue((wf / "features" / "FEAT-001-login").is_dir())
+
+        code, out = r.hr("migrate")
+        self.assertEqual(code, 0, out)
+        group = wf / "groups" / "GRP-001-login"
+        self.assertEqual(sorted(p.name for p in (group / "features").iterdir()),
+                         ["FEAT-002-signup", "FEAT-003-login", "FEAT-004-reset"])
+        self.assertEqual(list((wf / "features").iterdir()), [])
+        self.assertEqual(r.state("GRP-001")["feature_id"], "GRP-001-login")
+        self.assertEqual(r.state("FEAT-002")["parent"], "GRP-001-login")
+        self.assertEqual(json.loads((wf / "active.json").read_text(encoding="utf-8"))["feature_id"], "GRP-001-login")
+        self.assertEqual(r.hr("check", "-f", "GRP-001")[1], integrity)
+        self.assertNotIn("event", r.hr("check", "-f", "FEAT-002")[1])
+        self.assertIn("layout is current", r.hr("migrate")[1])
+        self.assertNotIn("old layout", r.hr("list")[1])
+
+        code, out = r.hr("start", "-f", "GRP-001")
+        self.assertEqual(code, 0, out)
+        self.assertIn("FEAT-002-signup started (part of GRP-001-login)", out)
 
 
 class OrdinaryFeatureUnaffectedTest(unittest.TestCase):

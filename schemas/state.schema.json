@@ -9,7 +9,7 @@
     },
     "feature_id": {
       "type": "string",
-      "pattern": "^FEAT-\\d{3,}"
+      "pattern": "^(FEAT|GRP)-\\d{3,}"
     },
     "title": {
       "type": "string"

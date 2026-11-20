@@ -35,6 +35,17 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(guard("Write", file_path=p.replace("state.json", "task-graph.json")), "allow")
         self.assertEqual(guard("Bash", command="echo {} > .human-rights/features/FEAT-001-x/.internal/state.json"), "deny")
 
+    def test_runtime_files_inside_a_group_are_protected_too(self):
+        group = "C:/repo/.human-rights/groups/GRP-001-x/.internal/state.json"
+        child = "C:/repo/.human-rights/groups/GRP-001-x/features/FEAT-002-y/.internal/events.jsonl"
+        nested = "C:/repo/.human-rights/groups/GRP-001-x/groups/GRP-002-y/features/FEAT-003-z/.internal/test-results.json"
+        for p in (group, child, nested):
+            self.assertEqual(guard("Write", file_path=p), "deny", p)
+        self.assertEqual(guard("Write", file_path=group.replace("state.json", "split.json")), "allow")
+        self.assertEqual(guard("Edit", file_path="C:/repo/.human-rights/groups/GRP-001-x/overview.md"), "allow")
+        self.assertEqual(guard("Bash", command=f"echo {{}} > {child.replace('C:/repo/', '')}"), "deny")
+        self.assertEqual(guard("Bash", command=f"cat {child.replace('C:/repo/', '')}"), "allow")
+
 
 class DocCheckTest(unittest.TestCase):
     def setUp(self):

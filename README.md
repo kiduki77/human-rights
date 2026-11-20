@@ -15,7 +15,7 @@ It picks how much process each request gets, and a small runtime enforces the hu
 <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-1d1b16">
 <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab">
 <img alt="dependencies" src="https://img.shields.io/badge/dependencies-stdlib%20only-2f7a4a">
-<img alt="tests" src="https://img.shields.io/badge/tests-129%20passing-2f7a4a">
+<img alt="tests" src="https://img.shields.io/badge/tests-135%20passing-2f7a4a">
 <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -145,7 +145,7 @@ commits, test evidence, and failure escalation.
 /hrs:verify FEAT-001                      run the approved test plan
 /hrs:redpill on 5 hard                    review drills: frequency and difficulty (off / status)
 /hrs:metrics                              lead time, rework, drill catch rate
-/hrs:list                                 every feature
+/hrs:list                                 every group and feature, as a tree
 /hrs:abort FEAT-001                       stop; records and branch are kept
 ```
 
@@ -233,6 +233,8 @@ flowchart LR
   share, and what was left out and why.
 - **Each feature then runs the normal workflow**, one at a time, with its own grade and approvals. A
   feature that turns out to be compound splits again.
+- **The folders show the split.** A group is `groups/GRP-001-login/`, with its overview on top and its
+  features inside. You open one folder and read downwards.
 - **A document is traced both ways.** Features cite their pages, pages that are not requirements are
   listed as excluded, and parts that could not be read are listed for you to check.
 
@@ -431,15 +433,24 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 ├── config.yaml                 repository policy
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
-└── features/FEAT-001-multi-drone/
-    ├── overview.md             for humans: conclusion, state, decision needed
-    ├── requirements.md  design.md  verification.md
-    ├── tasks/TASK-001.md ...
-    ├── details/                evidence you read only when you need it
-    └── .internal/              machine data
-        ├── requirements.json  task-graph.json  test-plan.json  split.json (groups)     written by the agent
-        └── state.json  test-results.json  failures.json  events.jsonl  redpill.json  logs/    written by hr only
+├── features/FEAT-001-multi-drone/          a feature on its own
+│   ├── overview.md             for humans: conclusion, state, decision needed
+│   ├── requirements.md  design.md  verification.md
+│   ├── tasks/TASK-001.md ...
+│   ├── details/                evidence you read only when you need it
+│   └── .internal/              machine data
+│       ├── requirements.json  task-graph.json  test-plan.json     written by the agent
+│       └── state.json  test-results.json  failures.json  events.jsonl  redpill.json  logs/    written by hr only
+└── groups/GRP-002-login/                   a compound request, split into features
+    ├── overview.md             the feature list, shared decisions, what was left out, group checks
+    ├── .internal/              split.json, test-plan.json (group checks), state.json, events.jsonl
+    └── features/
+        ├── FEAT-003-signup/    same files as a feature on its own
+        └── FEAT-004-login/
 ```
+
+A request that turns out to be compound is renamed from `FEAT-NNN` to `GRP-NNN` and moved under `groups/`.
+A workspace from an older version keeps working, and `.human-rights/hr migrate` moves it to this layout.
 
 Commit `.human-rights/` with your code. `logs/` and the machine-local `hr` wrappers are git-ignored. Result
 tables are generated from recorded evidence by `hr render`, never typed by the agent.

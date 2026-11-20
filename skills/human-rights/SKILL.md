@@ -128,7 +128,8 @@ Each row also has its own slash command: `/hrs:init`, `/hrs:new`, `:status`, `:l
 ### Group: a compound request
 
 `triaging → splitting → awaiting_split_approval → delivering → integrating → completed`. The group writes
-no code. Its features do, each through its own playbook below.
+no code. Its features do, each through its own playbook below. Entering `splitting` renames `FEAT-NNN-slug`
+to `GRP-NNN-slug` and moves it to `.human-rights/groups/`. Its features are created inside it.
 
 1. In `splitting`, write `.internal/split.json` (features with `outcome` and `verify_alone`, order, shared
    decisions, what is excluded) and the group's `test-plan.json` with at least one check that crosses

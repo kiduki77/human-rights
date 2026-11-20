@@ -1,7 +1,7 @@
 # `hr` command reference
 
 Call it as `.human-rights/hr <command>` (Bash) or `.human-rights\hr.cmd <command>` (PowerShell). Most commands
-take `-f FEAT-NNN` and default to the active feature.
+take `-f FEAT-NNN` (or `-f GRP-NNN` for a group) and default to the active feature.
 Exit codes: `0` ok, `1` a test failed, `2` usage or data error, `3` blocked by a gate.
 
 **Human decisions** are made in chat. The agent runs them with `--quote "<the human's exact words>"`, and the
@@ -18,6 +18,7 @@ runtime checks the quote against the human's latest captured message (see
 | `start [-f group\|feature] [--json]` | agent | start the next waiting feature of a group (dependencies done, one at a time) and print its brief |
 | `status [--json]` | anyone | state, approvals, tasks, tests, next human decision |
 | `list` | anyone | all features, as a tree of groups and their features |
+| `migrate [--dry-run]` | human / agent | move a workspace made by an older version to the current layout: a group becomes `groups/GRP-NNN-slug/` with its features inside |
 | `resume` | agent | reconcile stored state with git/GitHub, make the feature active |
 | `transition <state> [--reason]` | agent | guarded state change |
 | `plan-check [--json]` | agent | plan quality hard gate |

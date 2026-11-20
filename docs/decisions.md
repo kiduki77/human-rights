@@ -58,6 +58,15 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   that cannot be verified alone stays a task.
 - **A group needs a check that crosses its features (v0.5).** Features that pass on their own can fail
   when joined. Without a required cross-feature check the split is rejected.
+- **A group has its own id and holds its features.** A group used to be stored as `FEAT-NNN` beside
+  its features, so eleven folders in a row gave no sign that one was the parent of ten. A human reads these
+  documents by clicking through folders, so the folder tree now says it: `groups/GRP-NNN-slug/` holds the
+  group overview and, under `features/`, the features it was split into. Ids are found by scanning rather
+  than by a fixed path, and a number is never used by both a `FEAT-` and a `GRP-`, so the old id of a
+  renamed group still resolves. The event log is not rewritten on a rename, because rewriting it would
+  break the hash chain. A `renamed` event carries the old and new id.
+- **Turning a group back into one feature is refused while it has features.** Before this, the
+  features it had created were left without a parent group.
 - **A source document is traced both ways (v0.5).** Features cite pages, non-requirements are listed as
   excluded, unread parts are listed for the human, and what the code already does is not planned again.
   Otherwise the reader cannot tell what was dropped.

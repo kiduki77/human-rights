@@ -7,7 +7,7 @@ HUMAN_ONLY = re.compile(
     r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
-    r"\.(?:human-rights|workflow)[/\\]+(?:features[/\\]+[^/\\]+[/\\]+\.internal[/\\]+"
+    r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
     r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
     r"|\.local[/\\]+prompts\.jsonl)"
 )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -68,8 +69,10 @@ class Repo:
         return proc.stdout.decode("utf-8")
 
     def feature_dir(self, fid: str = "FEAT-001") -> Path:
-        feats = sorted((self.root / ".human-rights" / "features").glob(fid + "*"))
-        return feats[0]
+        num = fid.split("-")[1]
+        pattern = re.compile(r"^(FEAT|GRP)-" + num + r"(-|$)")
+        found = [p for p in (self.root / ".human-rights").glob(f"**/*-{num}*") if p.is_dir() and pattern.match(p.name)]
+        return sorted(found, key=lambda p: len(p.parts))[0]
 
     def state(self, fid: str = "FEAT-001") -> dict:
         return json.loads((self.feature_dir(fid) / ".internal" / "state.json").read_text(encoding="utf-8"))
