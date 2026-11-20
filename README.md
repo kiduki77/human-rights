@@ -20,6 +20,7 @@ It picks how much process each request gets, and a small runtime enforces the hu
 </p>
 
 <p>
+<a href="#faster-is-not-better">The question</a> ·
 <a href="#why">Why</a> ·
 <a href="#quick-start">Quick start</a> ·
 <a href="#how-it-works">How it works</a> ·
@@ -47,6 +48,40 @@ Design approval needed. Approve, point at anything that looks wrong, or ask for 
 ```
 
 <br>
+
+## Faster is not better
+
+**AI can make you a faster developer. Can it make you a better one?**
+
+Writing good code and shipping good software used to be the same skill. They have come apart. The agent
+writes the code now. What is left to you is the judgment: what to build, which trade-off to take, what a
+test has to prove, and whether to sign off. That judgment is a skill, and a skill you stop using gets weaker.
+
+- In a randomized trial by Anthropic (January 2026), engineers who learned a new library with AI help
+  scored **17% lower** on a quiz of what they had just used than those who coded by hand, and they were not
+  meaningfully faster. The gap was widest on debugging questions. Those who asked the AI to explain
+  concepts kept their scores; those who had it produce the code did not. It is one small study (52 mostly
+  junior engineers, one library). [Source](https://www.anthropic.com/research/AI-assistance-coding-skills)
+- In Stack Overflow's 2025 survey, 84% of developers use or plan to use AI tools, and more of them distrust
+  the accuracy of the output (46%) than trust it (33%).
+  [Source](https://survey.stackoverflow.co/2025/ai)
+
+Think of the last thing an agent built for you:
+
+- Can you say why it is designed that way, and which alternative was rejected?
+- Do you know what its tests prove, or only that they are green?
+- If it broke in production tonight, could you debug it without the agent?
+- Did you read what you approved?
+
+If the answers are no, you did not decide anything. You pressed a button, and your name is on the result.
+
+Your employer measures how fast you ship. Nobody measures whether you can still tell a good design from
+a bad one, and that is the part of your job an agent does not replace. human-rights is built to keep you
+doing it: the decisions that shape the design are asked of you, the evidence is put in front of you, and
+[red pill mode](#red-pill-mode) checks whether you read it.
+
+It does not yet measure whether you understand the code itself. The drills test whether you read what
+you approve, which is a start.
 
 ## Why
 
