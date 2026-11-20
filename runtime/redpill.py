@@ -672,7 +672,6 @@ def on_enter_state(feature: Feature, state: str, rng: Optional[random.Random] = 
     pools = _pools(feature)
     if planted.get("source") == "agent" and pools.pop(gate, None):
         write_json_atomic(_pool_path(feature), pools)
-    feature.emit("redpill_armed", gate=gate)
     return True
 
 
@@ -685,7 +684,7 @@ def on_leave_state(feature: Feature, state: str, reason: str) -> None:
     data["history"].append(_record(act, reason))
     data["active"] = None
     save(feature, data)
-    feature.emit("redpill_ended", gate=gate, outcome=reason)
+    feature.emit("redpill_ended", gate=gate, outcome=reason, planted_at=act["planted_at"])
 
 
 def check_before_approval(feature: Feature, gate: str) -> None:
@@ -715,7 +714,7 @@ def flag(feature: Feature, item: str, by: str, note: str, proof: Optional[Dict[s
         data["history"].append(_record(act, "caught", caught_by=by))
         data["active"] = None
         save(feature, data)
-        feature.emit("redpill_caught", gate=act["gate"], actor=f"human:{by}", **proof)
+        feature.emit("redpill_caught", gate=act["gate"], planted_at=act["planted_at"], actor=f"human:{by}", **proof)
         docs.render(feature)
         late = "\n" + LATE[lang] if act.get("attempts", 0) else ""
         return {"caught": True, "message": (PRAISE[lang] + late + "\n" + _lesson(lang, act)).strip()}
@@ -738,7 +737,8 @@ def reveal(feature: Feature, by: str, proof: Optional[Dict[str, Any]] = None) ->
     data["history"].append(_record(act, "missed", revealed_by=by))
     data["active"] = None
     save(feature, data)
-    feature.emit("redpill_revealed", gate=act["gate"], actor=f"human:{by}", **(proof or {}))
+    feature.emit("redpill_revealed", gate=act["gate"], planted_at=act["planted_at"], actor=f"human:{by}",
+                 **(proof or {}))
     docs.render(feature)
     return (REVEAL[lang].format(id=act["id"], text=act["text"]) + "\n" + _lesson(lang, act)).strip()
 

@@ -121,3 +121,8 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   scolded, and only a blind "approved" is.
 - **Toggle and frequency are human decisions.** `redpill on/off/reveal` are hook-guarded and the agent may not
   edit `config.yaml` to loosen it. `redpill status` never reveals whether a drill is active.
+- **The event log records a drill only when it ends.** Planting writes no event, because `hr log` and
+  `events.jsonl` are readable and an event at that moment would announce the drill. The closing event
+  (`redpill_ended`, `redpill_caught`, `redpill_revealed`) carries `planted_at`, so the log still shows
+  when the drill started. `hr-redpill-author` runs before every approval request while the mode is on, so
+  seeing it run says nothing about whether a drill fired.

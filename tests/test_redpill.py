@@ -102,6 +102,22 @@ class DesignDrillTest(RedpillBase):
         r.hr("status")
         self.assertIsNotNone(r.state()["approvals"]["design"], "re-rendering generated blocks must not invalidate approval")
 
+    def test_event_log_does_not_show_an_active_drill(self):
+        r = self.r
+        r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
+        self.assertEqual(r.hr("transition", "awaiting_design_approval")[0], 0)
+        act = self.drill()["active"]
+        self.assertIsNotNone(act)
+        self.assertEqual([e["event"] for e in self.feature().events() if e["event"].startswith("redpill")], [])
+        code, out = r.hr("log", "-n", "50")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("redpill", out)
+
+        r.hr("flag", act["id"], "--by", "alice")
+        caught = [e for e in self.feature().events() if e["event"] == "redpill_caught"]
+        self.assertEqual(len(caught), 1)
+        self.assertEqual(caught[0]["planted_at"], act["planted_at"])
+
     def test_reveal_counts_as_missed(self):
         r = self.r
         r.hr("redpill", "on", "--one-in", "1", "--author", "builtin")
