@@ -10,10 +10,10 @@ from test_redpill import guard
 WHY = "The human decided on four vehicles in DEC-001, and this criterion only checks two of them."
 CANDIDATES = {"candidates": [
     {"op": "mutate", "block": "results", "target": "TEST-010", "field": "pass_criteria",
-     "replacement": "AC-001 met with 2 vehicles", "difficulty": "hard", "category": "contradicts_decision",
-     "why_wrong": WHY},
+     "replacement": "AC-001 met with 2 vehicles", "against": ["DEC-001"], "difficulty": "hard",
+     "category": "contradicts_decision", "why_wrong": WHY},
     {"op": "mutate", "block": "tasks", "target": "TASK-004", "field": "depends_on", "replacement": "-",
-     "difficulty": "hard", "category": "order_wrong",
+     "against": ["TASK-002"], "difficulty": "hard", "category": "order_wrong",
      "why_wrong": "The selector calls the command router, so it cannot be built before TASK-002."},
     {"op": "mutate", "block": "steps", "target": "TEST-013", "step": 2, "field": "expect",
      "replacement": "the operator feels the switch was smooth", "difficulty": "normal",
@@ -28,6 +28,22 @@ CANDIDATES = {"candidates": [
      "runner": "command", "pass_criteria": "the stub records one call", "difficulty": "easy",
      "category": "subject_not_exercised", "why_wrong": "The router itself is replaced by a stub, so it is not tested."},
 ]}
+
+
+FILLERS = [c for c in CANDIDATES["candidates"] if c["difficulty"] != "hard"]
+DROPPED = {"op": "remove", "block": "results", "target": "TEST-011", "against": ["REQ-004"], "difficulty": "hard",
+           "category": "silent_exclusion",
+           "why_wrong": "Without this row nothing checks that switching leaves the other vehicle's latency alone."}
+ASSUMED = {"op": "add", "block": "decisions", "title": "Vehicles on the same link may share a system_id",
+           "risk": "low", "difficulty": "normal", "category": "scope_beyond_request",
+           "why_wrong": "Nobody agreed to this, and the registry design depends on unique ids (ASM-001)."}
+CREDITED = {"op": "mutate", "block": "decisions", "target": "DEC-004", "field": "decided_by", "replacement": "user",
+            "against": ["REQ-001"], "difficulty": "hard", "category": "contradicts_decision",
+            "why_wrong": "You were never asked about the link protocol. It was taken from the existing code."}
+NUMBER = {"op": "mutate", "block": "results", "target": "TEST-011", "field": "pass_criteria",
+          "replacement": "AC-004 met (vehicle B command latency within +500 ms)", "against": ["REQ-004"],
+          "difficulty": "normal", "category": "boundary_shifted",
+          "why_wrong": "The acceptance criterion allows 50 ms of added latency, not 500 ms."}
 
 
 class Seq:
@@ -206,6 +222,102 @@ class AuthoredDrillTest(Base):
         self.assertIn("| [TASK-004](tasks/TASK-004.md) | Vehicle selection UI | - | medium |", self.text())
         self.assertEqual(r.hr("doc-check")[0], 0)
 
+    def start(self, level, *cands):
+        r = self.r
+        payload = {"candidates": list(cands) + FILLERS}
+        r.hr("redpill", "on", "--one-in", "1", "--difficulty", level)
+        code, out = self.seed(payload)
+        self.assertEqual(code, 0, out)
+        r.hr("transition", "awaiting_design_approval")
+        self.seed(payload)
+        return self.arm(Seq(pick=0))
+
+    def test_hard_candidates_must_be_hard(self):
+        def rejected(*hard):
+            code, out = self.seed({"candidates": list(hard) + FILLERS})
+            self.assertEqual(code, 2, out)
+            return out
+
+        added = dict(CANDIDATES["candidates"][3], difficulty="hard", against=["REQ-002"])
+        self.assertIn("a hard candidate changes or removes a real row", rejected(added))
+        self.assertIn("a hard candidate needs `against`", rejected({k: v for k, v in DROPPED.items() if k != "against"}))
+        self.assertIn("a hard candidate needs `against`", rejected(dict(DROPPED, against=["TEST-011"])))
+        self.assertIn("against: REQ-099 is not an ID in this feature", rejected(dict(DROPPED, against=["REQ-099"])))
+        self.assertIn("a change of number only cannot be hard", rejected(dict(NUMBER, difficulty="hard")))
+        again = dict(NUMBER, replacement="AC-004 met (vehicle B command latency within +5 ms)")
+        self.assertIn("candidates 2, 3 only change a number", rejected(DROPPED, NUMBER, again))
+        self.assertEqual(self.seed({"candidates": [DROPPED, NUMBER] + FILLERS})[0], 0)
+
+    def test_a_number_change_is_the_last_choice(self):
+        act = self.start("normal", NUMBER, DROPPED)
+        self.assertNotEqual(act["technique"], "number")
+
+    def test_a_removed_row_is_found_by_what_is_missing(self):
+        r = self.r
+        act = self.start("hard", DROPPED)
+        self.assertEqual((act["op"], act["id"], act["technique"]), ("remove", "TEST-011", "remove"))
+        for name in ("overview.md", "verification.md"):
+            self.assertNotIn("TEST-011", self.text(name))
+            self.assertIn("TEST-010", self.text(name))
+        self.assertEqual(r.hr("doc-check")[0], 0)
+        self.assertEqual(r.hr("approve", "design", "--by", "alice")[0], 3)
+        code, out = r.hr("flag", "TEST-011", "--by", "alice")
+        self.assertIn("Good catch", out)
+        self.assertIn("The row that was left out: TEST-011 ", out)
+        self.assertIn("Compare with: REQ-004", out)
+        self.assertIn("TEST-011", self.text())
+        hist = redpill.load(self.feature())["history"][-1]
+        self.assertEqual((hist["technique"], hist["category"]), ("remove", "silent_exclusion"))
+
+    def test_an_assumption_nobody_made_is_planted_among_the_real_ones(self):
+        r = self.r
+        act = self.start("normal", ASSUMED, DROPPED)
+        self.assertEqual((act["block"], act["id"], act["technique"]), ("decisions", "ASM-002", "add:decisions"))
+        lines = self.text().splitlines()
+        at = lines.index("| ASM-002 | Vehicles on the same link may share a system_id | low |")
+        self.assertTrue(lines[at - 1].startswith("| ASM-001 |"))
+        self.assertNotIn("ASM-002", self.text("verification.md"))
+        req = json.loads((self.fdir / ".internal" / "requirements.json").read_text(encoding="utf-8"))
+        self.assertEqual([a["id"] for a in req["assumptions"]], ["ASM-001"], "the requirements are untouched")
+        code, out = r.hr("flag", "ASM-002", "--by", "alice")
+        self.assertIn("Good catch", out)
+        self.assertNotIn("ASM-002", self.text())
+
+    def test_a_decision_credited_to_the_human(self):
+        r = self.r
+        r.hr("render")
+        self.assertIn("| DEC-004 | Link protocol | Keep the existing MAVLink library | existing code |", self.text())
+        act = self.start("hard", CREDITED)
+        self.assertEqual((act["id"], act["technique"]), ("DEC-004", "mutate:decided_by"))
+        self.assertIn("| DEC-004 | Link protocol | Keep the existing MAVLink library | you |", self.text())
+        code, out = r.hr("redpill", "reveal", "--by", "alice")
+        self.assertIn("The real value is: existing code", out)
+        self.assertIn("Compare with: REQ-001", out)
+        self.assertIn("| existing code |", self.text())
+
+    def test_decision_fields_fit_the_row(self):
+        code, out = self.seed({"candidates": [dict(CREDITED, target="ASM-001")] + FILLERS})
+        self.assertEqual(code, 2, out)
+        self.assertIn("field must be one of assumption, risk", out)
+        self.assertIn("decided_by must be one of user, default, code, group",
+                      self.seed({"candidates": [dict(CREDITED, replacement="the team")] + FILLERS})[1])
+
+    def test_the_way_of_being_wrong_is_not_repeated(self):
+        r = self.r
+        other = {"op": "mutate", "block": "results", "target": "TEST-012", "field": "pass_criteria",
+                 "replacement": "the registry starts without error", "against": ["REQ-005"], "difficulty": "hard",
+                 "category": "wrong_thing_measured",
+                 "why_wrong": "Starting says nothing about refusing a duplicate system id, which REQ-005 asks for."}
+        first = CANDIDATES["candidates"][0]
+        act = self.start("hard", first, other, DROPPED)
+        self.assertEqual(act["technique"], "mutate:pass_criteria")
+        r.hr("flag", act["id"], "--by", "alice")
+        self.seed({"candidates": [first, other, DROPPED] + FILLERS})
+        act = self.arm(Seq(pick=0))
+        self.assertEqual(act["technique"], "remove", "a changed pass criterion was just used")
+        b = json.loads(r.hr("redpill", "brief", "--gate", "design", "--json")[1])
+        self.assertIn("Ways of being wrong used in recent drills - avoid them: mutate:pass_criteria", b["prompt"])
+
     def test_recently_used_category_is_avoided(self):
         r = self.r
         r.hr("redpill", "on", "--one-in", "1", "--difficulty", "hard")
@@ -230,14 +342,30 @@ class BuiltinLevelsTest(Base):
         self.assertEqual((act["op"], act["difficulty"]), ("add", "normal"))
         self.assertIn("snapshot recorded from this build", act["text"])
 
-    def test_hard_shifts_a_number_in_a_real_criterion(self):
-        self.on("hard")
-        act = self.arm(Seq(r=0.9, pick=0))
-        self.assertEqual((act["op"], act["id"], act["category"]), ("mutate", "TEST-011", "boundary_shifted"))
-        self.assertIn("vehicle B command latency within +25 ms", self.text())
+    def test_a_shifted_number_is_a_normal_drill_and_not_repeated(self):
+        self.on("normal")
+        act = self.arm(Seq(r=0.1, pick=0))
+        self.assertEqual((act["op"], act["id"], act["category"], act["difficulty"], act["technique"]),
+                         ("mutate", "TEST-011", "boundary_shifted", "normal", "number"))
+        self.assertIn("vehicle B command latency within +100 ms", self.text())
         code, out = self.r.hr("redpill", "reveal", "--by", "alice")
         self.assertIn("A number in a real row was changed", out)
         self.assertIn("within +50 ms", out)
+        act = self.arm(Seq(r=0.1, pick=0))
+        self.assertEqual(act["op"], "add", "the last drill was a number, so this one is not")
+
+    def test_hard_never_shifts_a_number_and_can_leave_a_check_out(self):
+        self.on("hard")
+        f = self.feature()
+        rng = random.Random(3)
+        acts = [redpill._hard(f, "design", rng) for _ in range(80)]
+        self.assertEqual({a["category"] for a in acts}, {"criterion_proves_nothing", "order_wrong", "silent_exclusion"})
+        act = self.arm(Seq(pick=2))
+        self.assertEqual((act["op"], act["technique"]), ("remove", "remove"))
+        self.assertNotIn(act["id"], self.text())
+        code, out = self.r.hr("redpill", "reveal", "--by", "alice")
+        self.assertIn("A required check was left out of the table", out)
+        self.assertIn(act["id"], self.text())
 
     def test_hard_final_drill_shows_a_pass_that_is_not_bound(self):
         f = self.feature()

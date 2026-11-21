@@ -58,6 +58,15 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   that cannot be verified alone stays a task.
 - **A group needs a check that crosses its features (v0.5).** Features that pass on their own can fail
   when joined. Without a required cross-feature check the split is rejected.
+- **A drill has to look like a real miss.** In use, the planted items came out alike, and many were a
+  number that differed from the requirement. A reviewer learns to scan tables for numbers and catches
+  every plant without reviewing better. The misses that happen for real are an assumed requirement, a
+  change outside the request, and a check that went missing. So a plant can now be an assumption nobody
+  made, a decision credited to the wrong party, a check moved to another requirement, or a row left out.
+  The runtime holds a candidate to its difficulty label instead of trusting the author: hard means a real
+  row changed or removed, with the IDs to compare it against, and never an added row. A change of number
+  only is accepted once per set, never as hard, and used last. The way a plant is wrong is recorded and
+  not repeated in the next drills.
 - **A group has its own id and holds its features.** A group used to be stored as `FEAT-NNN` beside
   its features, so eleven folders in a row gave no sign that one was the parent of ten. A human reads these
   documents by clicking through folders, so the folder tree now says it: `groups/GRP-NNN-slug/` holds the

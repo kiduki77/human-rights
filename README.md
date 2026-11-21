@@ -15,7 +15,7 @@ It picks how much process each request gets, and a small runtime enforces the hu
 <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-1d1b16">
 <img alt="Python 3.8+" src="https://img.shields.io/badge/python-3.8%2B-3776ab">
 <img alt="dependencies" src="https://img.shields.io/badge/dependencies-stdlib%20only-2f7a4a">
-<img alt="tests" src="https://img.shields.io/badge/tests-135%20passing-2f7a4a">
+<img alt="tests" src="https://img.shields.io/badge/tests-143%20passing-2f7a4a">
 <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -307,20 +307,29 @@ denies those commands. If you prefer, you can still run them yourself (`! .human
 </div>
 
 A human gate works only if the human reads what they approve. With red pill mode on, roughly one in N
-approval requests contains **one planted item that must not be approved**. You find it, and you get
-better at reviewing. Each drill ends with the reason the item was wrong.
+approval requests contains **one planted item that must not be approved**, or is missing one row that
+must be there. You find it, and you get better at reviewing. Each drill ends with the reason it was wrong.
 
 | Difficulty | What is planted | You find it by |
 |---|---|---|
 | easy | an added row that says outright that a check proves nothing or a safeguard goes away | reading the row |
-| normal | a row that sounds routine but does not prove what it claims | thinking it through |
-| hard | a real row with one cell changed: a pass criterion, a number, a dependency, a result | comparing it with the requirements and decisions |
+| normal | a row that sounds routine but does not prove what it claims, or an assumption nobody agreed to | thinking it through |
+| hard | a real row changed or left out: a pass criterion, the requirement a check covers, who made a decision, a dependency, a required check that is gone | comparing it with the requirements, the decisions, and the rest of the table |
 
 The plants are not taken from a fixed list. Before each approval request a separate agent reads the
-feature and writes candidates that are wrong for that feature: a decision of yours contradicted, a
-boundary shifted, a test that passes while the requirement is broken. It avoids the kinds of flaw used in
-recent drills. The agent that asks for your approval never sees them. On a host without sub-agents, set
-`redpill.author: builtin` to use the runtime's own lists and row changes.
+feature and its code and writes candidates that are wrong for that feature: an assumption you never
+made, a decision of yours contradicted, a check left out, a test that passes while the requirement is
+broken. The agent that asks for your approval never sees them.
+
+A drill is only worth doing if it looks like a real miss, so the runtime refuses the cheap ones:
+
+- **No number games.** A row that differs from the real one by a number only is accepted once per set,
+  never as hard, and used last. Scanning a table for numbers is not reviewing.
+- **Hard means hard.** A hard plant is a real row changed or removed, never an extra row, and it names
+  what you have to compare it with. You are told that after the drill.
+- **No repeats.** The kind of flaw and the way it is wrong are recorded, and the next drills differ.
+
+On a host without sub-agents, set `redpill.author: builtin` to use the runtime's own lists and row changes.
 
 `adaptive` difficulty (the default) starts easy, moves up after 2 catches in a row, and down after 2
 misses in a row. A catch made after an approval was already refused is recorded separately and does not
@@ -347,6 +356,7 @@ Say it in chat, in your own words. Name the row by its ID or describe it.
 |---|---|
 | "approved", pointing at nothing | With a plant present: told off, not approved. With none: approved. |
 | You point at the planted row | Caught, and approved in the same step. You don't need to add "approved". The reason it was wrong is shown. |
+| You name a row that should be there and isn't | The same, when that row is the one that was left out. |
 | You point at a real row | No scolding. It is recorded as a review concern, and approval waits until the agent has dealt with it. |
 | "show me the answer" | The plant and the reason are shown, and it counts as missed. Approve again afterwards. |
 | You ask for a change | Handled as a change request. The drill ends, and the next request draws again. |
@@ -358,6 +368,10 @@ your latest message.
 you> TEST-010 checks 2 vehicles, but we agreed on 4         caught it: table restored, approved
      Why it was wrong: you decided on four vehicles (DEC-001), and this criterion checked two.
      The real value is: AC-001, AC-002 and AC-003 met
+you> TEST-011 is gone, nothing checks REQ-004 now           caught it: the row is back, approved
+     Why it was wrong: without this row nothing verifies the latency limit in REQ-004.
+     The row that was left out: TEST-011 4x SITL: latency during switching
+     Compare with: REQ-004
 you> show me the answer                                     give up: see it and why (recorded as missed)
 
 /hrs:redpill on 5 hard                    about 1 in 5 approval requests, hard
