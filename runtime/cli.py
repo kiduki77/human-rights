@@ -1202,6 +1202,52 @@ def cmd_redpill(ws: Workspace, args) -> int:
     return 0
 
 
+def cmd_floor(ws: Workspace, args) -> int:
+    from runtime import human
+    from runtime.routing import floor
+    from runtime.routing.router import MODES
+
+    ws.require_init()
+    rules = floor.load(ws)
+    if args.action == "list":
+        if not rules:
+            print("no floor: no path is always gated. The owner adds one with `hr floor add <glob> <level>`.")
+            return 0
+        fid = ws.active_feature_id()
+        by_pattern = {}
+        if fid:
+            f = ws.resolve(fid)
+            st = f.state()
+            declared = (st.get("routing") or {}).get("declared_paths") or []
+            by_pattern = {h["pattern"]: h["paths"] for h in floor.hits(rules, floor.touched(ws, st, declared))}
+        for pattern in sorted(rules):
+            print(f"{rules[pattern]}  {pattern}")
+            for p in by_pattern.get(pattern, []):
+                print(f"    touched by {fid}: {p}")
+        return 0
+    if not args.pattern:
+        raise HRError(f"hr floor {args.action} needs a glob")
+    pattern = floor.check_pattern(args.pattern)
+    if args.action == "add":
+        if args.level not in MODES:
+            raise HRError(f"hr floor add <glob> <level>: the level is one of {', '.join(MODES)}")
+        change = {"action": "add", "pattern": pattern, "level": args.level, "previous": rules.get(pattern)}
+        rules[pattern] = args.level
+    else:
+        if pattern not in rules:
+            raise HRError(f"{pattern!r} is not in the floor (`hr floor` lists the rules)")
+        change = {"action": "remove", "pattern": pattern, "level": None, "previous": rules.pop(pattern)}
+    who = human.resolve(ws, args.by, args.quote)
+    floor.save(ws, rules)
+    fid = ws.active_feature_id()
+    if fid:
+        ws.resolve(fid).emit("floor_changed", actor=f"human:{who['by']}", **change, **human.proof_fields(who))
+    was = f" (was {change['previous']})" if change["previous"] else ""
+    print(f"floor: {change['action']} {pattern}" + (f" {args.level}" if args.action == "add" else "") + was
+          + f" | decided by {who['by']} via {who['via']}")
+    return 0
+
+
 def cmd_migrate(ws: Workspace, args) -> int:
     ws.require_init()
     from runtime import groups
@@ -1399,6 +1445,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--gates", help="design, final, or design,final")
     sp.add_argument("--language", help="en or ko (default: docs.language)")
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
+    sp = add("floor", cmd_floor, "[add/remove are human decisions: --by, or --quote from chat] paths that always need at least a level",
+             feature=False)
+    sp.add_argument("action", nargs="?", choices=("list", "add", "remove"), default="list")
+    sp.add_argument("pattern", nargs="?", help="glob such as src/auth/**")
+    sp.add_argument("level", nargs="?", help="L0, L1, L2 or L3 (add only)")
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     add("merge-check", cmd_merge_check, "can this be merged? (approved code, live GitHub state)")
