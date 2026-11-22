@@ -129,12 +129,15 @@ def parse_simple_yaml(text: str) -> Dict[str, Any]:
         while stack and indent <= stack[-1][0]:
             stack.pop()
         parent = stack[-1][1]
+        key = key.strip()
+        if len(key) > 1 and key[0] in "\"'" and key[-1] == key[0]:
+            key = key[1:-1]
         if value.strip() == "":
             child: Dict[str, Any] = {}
-            parent[key.strip()] = child
+            parent[key] = child
             stack.append((indent, child))
         else:
-            parent[key.strip()] = _scalar(value)
+            parent[key] = _scalar(value)
     return root
 
 
