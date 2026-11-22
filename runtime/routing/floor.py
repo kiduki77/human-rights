@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from runtime.common import HRError, changed_files_since, dirty_paths, head_sha, path_matches, write_text_atomic
+from runtime.common import (EXCLUDE_SPECS, HRError, changed_files_since, dirty_paths, git, head_sha, path_matches,
+                            write_text_atomic)
 from runtime.routing.router import MODES
 from runtime.state.store import Workspace
 
@@ -58,7 +59,12 @@ def save(ws: Workspace, rules: Floor) -> None:
 def touched(ws: Workspace, st: Dict[str, Any], declared: List[str]) -> List[str]:
     root = ws.root
     base = ((st.get("git") or {}).get("base_sha"))
-    seen = set(declared) | set(changed_files_since(root, base, head_sha(root)) or [])
+    head = head_sha(root)
+    changed = changed_files_since(root, base, head)
+    if changed is None and base and head:
+        # the start commit is no longer an ancestor of HEAD (rebase, reset, amend): compare the trees instead
+        changed = (git(root, "diff", "--name-only", base, head, "--", ".", *EXCLUDE_SPECS) or "").splitlines()
+    seen = set(declared) | set(changed or [])
     for entry in dirty_paths(root):
         seen.update(p.strip().strip('"') for p in entry.split(" -> "))
     return sorted(seen)

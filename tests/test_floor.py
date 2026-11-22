@@ -186,6 +186,17 @@ class GuardTest(unittest.TestCase):
         self.assertNotIn("[floor]", out)
         self.assertIn("design", out)
 
+    def test_a_rewritten_history_does_not_hide_the_diff(self):
+        r = self.r
+        r.write("src/other.py", "x = 1\n")
+        r.commit("a commit the feature started from")
+        r.hr("new", "Second change")
+        helpers.git(r.root, "commit", "-q", "--amend", "-m", "rewritten")
+        r.write("src/auth/login.py", "ok = True\n")
+        r.commit("not a descendant of the start commit")
+        code, out = r.hr("classify", "--axes", L0_AXES, "-f", "FEAT-002")
+        self.assertIn("mode: L3", out)
+
     def test_floor_below_the_mode_is_not_a_problem(self):
         r = self.r
         r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
