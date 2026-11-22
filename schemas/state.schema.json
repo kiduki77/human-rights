@@ -147,6 +147,57 @@
               "basis"
             ]
           }
+        },
+        "declared_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "floor": {
+          "type": "object",
+          "properties": {
+            "hits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "enum": [
+                      "L0",
+                      "L1",
+                      "L2",
+                      "L3"
+                    ]
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "pattern",
+                  "level",
+                  "paths"
+                ]
+              }
+            },
+            "raised_from": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "hits",
+            "raised_from"
+          ]
         }
       }
     },

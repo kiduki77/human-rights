@@ -150,17 +150,24 @@ def cmd_new(ws: Workspace, args) -> int:
 
 
 def cmd_classify(ws: Workspace, args) -> int:
+    from runtime.routing import floor
     from runtime.routing.router import apply_route, route
 
     f = _feature(ws, args)
     st = f.state()
     flags = [x.strip() for x in (args.flags or "").split(",") if x.strip()]
-    result = route(_read_json_arg(args.axes), flags, ws.config())
+    if args.paths is None:
+        declared = list((st.get("routing") or {}).get("declared_paths") or [])
+    else:
+        declared = [x.strip() for x in args.paths.split(",") if x.strip()]
+    hits = floor.hits(floor.load(ws), floor.touched(ws, st, declared))
+    result = route(_read_json_arg(args.axes), flags, ws.config(), hits)
     notes = apply_route(st, result, now())
+    st["routing"]["declared_paths"] = declared
     st["size"] = _size_record(args.size, args.size_reason)
     f.save_state(st)
     f.emit("classified", mode=st["mode"], flags=result["flags"], effective_scores=result["effective_scores"],
-           required_gates=st["required_gates"], note=args.note or "", size=st["size"])
+           required_gates=st["required_gates"], note=args.note or "", size=st["size"], floor=result["floor"])
     gates = ", ".join(sorted({f"{g['gate']} ({g['reason']})" for g in st["gate_reasons"]})) or "none"
     print(f"mode: {st['mode']}  |  required gates: {gates}")
     for r in result["reasons"] + notes:
@@ -1257,6 +1264,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("classify", cmd_classify, "Adaptive Router (re)classification")
     sp.add_argument("--axes", required=True, help="JSON, @file, or - (stdin)")
     sp.add_argument("--flags", help="physical_safety,vehicle_command,auth,secrets,destructive_migration,irreversible_external")
+    sp.add_argument("--paths", help="comma-separated files or globs this change is expected to touch (checked against "
+                                    "the owner's floor; omitted keeps the paths from the last classification)")
     sp.add_argument("--note")
     sp.add_argument("--size", choices=("single", "compound"), help="one feature, or several separately verifiable results")
     sp.add_argument("--size-reason")

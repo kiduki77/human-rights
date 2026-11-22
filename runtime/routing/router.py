@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from runtime.common import HRError
 
@@ -62,7 +62,11 @@ def validate_axes(axes: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def route(axes: Dict[str, Any], flags: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+def floor_level(hits) -> Optional[str]:
+    return max((h["level"] for h in hits), key=MODES.index, default=None)
+
+
+def route(axes: Dict[str, Any], flags: List[str], config: Dict[str, Any], floor_hits=()) -> Dict[str, Any]:
     axes = validate_axes(axes)
     unknown = [f for f in flags if f not in ALL_FLAGS]
     if unknown:
@@ -102,6 +106,14 @@ def route(axes: Dict[str, Any], flags: List[str], config: Dict[str, Any]) -> Dic
             gates.append({"gate": "design", "reason": APPROVAL_FLAGS[f], "sticky": True, "flag": f})
             gates.append({"gate": "final", "reason": APPROVAL_FLAGS[f], "sticky": True, "flag": f})
 
+    raised_from = None
+    top = floor_level(floor_hits)
+    if top and MODES.index(top) > MODES.index(mode):
+        hit = next(h for h in floor_hits if h["level"] == top)
+        shown = ", ".join(hit["paths"][:5]) + (", ..." if len(hit["paths"]) > 5 else "")
+        reasons.append(f"owner floor `{hit['pattern']}` ({top}) raised {mode} -> {top}: {shown}")
+        raised_from, mode = mode, top
+
     rc = config.get("routing", {})
     if mode in (rc.get("design_gate_modes") or []):
         gates.append({"gate": "design", "reason": f"{mode} policy", "sticky": False})
@@ -117,6 +129,7 @@ def route(axes: Dict[str, Any], flags: List[str], config: Dict[str, Any]) -> Dic
         "flags": sorted(set(flags)),
         "gates": gates,
         "reasons": reasons,
+        "floor": {"hits": list(floor_hits), "raised_from": raised_from},
     }
 
 
@@ -135,7 +148,7 @@ def apply_route(state: Dict[str, Any], result: Dict[str, Any], ts: str) -> List[
         notes.append("A safety flag was already triggered; staying at L3 (never auto-released).")
         mode = "L3"
     state["mode"] = mode
-    state["routing"] = {k: result[k] for k in ("axes", "effective_scores", "flags", "reasons")}
+    state["routing"] = {k: result[k] for k in ("axes", "effective_scores", "flags", "reasons", "floor")}
     state["routing"]["classified_at"] = ts
     if prev_mode != mode:
         state.setdefault("mode_history", []).append({"from": prev_mode, "to": mode, "at": ts})
