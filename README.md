@@ -259,6 +259,9 @@ from the agent's description of what happened.
 <td valign="top"><b>No filler in what you read</b><br>Documents and plan text are scanned for filler phrases (English and Korean lists; the reviewer covers other languages). A hit blocks the approval request.</td>
 <td valign="top"><b>Machines test first</b><br>Your "it passed" is refused until every script and agent test has passed.</td>
 </tr>
+<tr>
+<td colspan="3" valign="top"><b>Paths you mark are always gated</b><br>List paths in <code>.human-rights/floor.yaml</code> with a minimum level. A change that touches one is raised to it in code, whatever the agent scored. Only you change the list (<code>hr floor add</code>).</td>
+</tr>
 </table>
 
 > [!NOTE]
@@ -282,7 +285,7 @@ plan you approve. Changing any of it later invalidates the approval.
 
 ### Human decisions, in chat
 
-Approvals, review comments, manual test results, releasing escalations, and red pill controls belong to you.
+Approvals, review comments, manual test results, releasing escalations, red pill controls, and changes to the path floor belong to you.
 You make them by saying so in chat:
 
 ```text
@@ -445,6 +448,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 ```text
 <repo>/.human-rights/
 ├── config.yaml                 repository policy
+├── floor.yaml                  (optional) paths that always need at least a level, owner-only
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
 ├── features/FEAT-001-multi-drone/          a feature on its own

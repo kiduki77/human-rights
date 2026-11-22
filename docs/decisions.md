@@ -144,3 +144,10 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   (`redpill_ended`, `redpill_caught`, `redpill_revealed`) carries `planted_at`, so the log still shows
   when the drill started. `hr-redpill-author` runs before every approval request while the mode is on, so
   seeing it run says nothing about whether a drill fired.
+- **The floor is its own file, and the hook protects it.** The router lets the model score the axes, so a risky
+  change scored low goes through ungated. The owner lists paths with a minimum level, applied in code after
+  scoring. The list is not in `config.yaml` because the agent edits that file freely and could delete a rule
+  that binds it. `.human-rights/` is excluded from every diff, so `floor.yaml` never counts as a change to
+  gate, and the PreToolUse hook denies the agent's writes to it. Changes go through `hr floor add|remove`,
+  which needs the human's quote. Declared paths decide the grade at classification, before any file exists.
+  The real diff is checked at every later transition, because a declaration is an estimate too.
