@@ -4,19 +4,27 @@ import re
 import sys
 
 HUMAN_ONLY = re.compile(
-    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|redpill\s+(?:on|off|reveal))\b"
+    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|floor\s+(?:add|remove)|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
     r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
     r"|\.local[/\\]+prompts\.jsonl)"
 )
+FLOOR = re.compile(r"\.(?:human-rights|workflow)[/\\]+floor\.yaml")
 SECRET = re.compile(r"redpill(?:-pool)?\.json")
 QUOTE = re.compile(r"\s--quote(?:\s|=)")
 WRITE_HINT = re.compile(
     r"(>|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bcp\b|\bmv\b|\brm\b|\bdd\b|Set-Content|Add-Content|Out-File|"
     r"Copy-Item|Move-Item|Remove-Item|New-Item|\bopen\(|write_text|WriteAllText|\btruncate\b)",
     re.I,
+)
+
+
+FLOOR_MESSAGE = (
+    "human-rights: floor.yaml belongs to the owner. It lists the paths that always need a minimum level, and the "
+    "agent cannot change it. The owner changes it by hand, or in chat through "
+    "`hr floor add|remove ... --quote \"<their words>\"`."
 )
 
 
@@ -59,6 +67,8 @@ def main() -> None:
                 "human-rights: state.json / test-results.json / failures.json / events.jsonl / logs are written only by "
                 "the hr runtime. Use `hr transition` for state changes and `hr verify` for test results."
             )
+        if FLOOR.search(cmd) and WRITE_HINT.search(cmd):
+            deny(FLOOR_MESSAGE)
         sys.exit(0)
 
     if tool in ("Read", "Grep") and SECRET.search(str(inp.get("file_path") or inp.get("path") or "")):
@@ -68,6 +78,8 @@ def main() -> None:
         )
     if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
         path = inp.get("file_path") or inp.get("notebook_path") or ""
+        if FLOOR.search(path.replace("\\", "/")):
+            deny(FLOOR_MESSAGE)
         if PROTECTED.search(path.replace("\\", "/")):
             deny(
                 "human-rights: this file is written only by the hr runtime (single state writer). "

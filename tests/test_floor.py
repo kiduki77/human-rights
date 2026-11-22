@@ -1,7 +1,10 @@
 import json
+import subprocess
+import sys
 import unittest
 from unittest import mock
 
+import helpers
 from helpers import L0_AXES, L3_AXES, ONE, Repo
 from runtime.config import DEFAULTS, parse_simple_yaml
 from runtime.routing import floor
@@ -189,6 +192,114 @@ class GuardTest(unittest.TestCase):
         r.write("migrations/0001.sql", "select 1;\n")
         code, out = r.hr("transition", "verifying_tasks")
         self.assertNotIn("[floor]", out)
+
+
+class FloorCommandTest(unittest.TestCase):
+    def setUp(self):
+        self.r = Repo()
+        self.r.hr("init")
+        self.floor_file = self.r.root / ".human-rights" / "floor.yaml"
+
+    def tearDown(self):
+        self.r.cleanup()
+
+    def test_changing_the_floor_needs_a_human(self):
+        code, out = self.r.hr("floor", "add", "src/auth/**", "L3")
+        self.assertEqual(code, 2, out)
+        self.assertIn("--by", out)
+        self.assertFalse(self.floor_file.exists())
+
+    def test_a_quote_that_is_not_in_the_humans_message_is_refused(self):
+        self.r.say("sounds fine")
+        code, out = self.r.hr("floor", "add", "src/auth/**", "L3", "--quote", "gate the auth code")
+        self.assertEqual(code, 3, out)
+        self.assertFalse(self.floor_file.exists())
+
+    def test_add_and_remove_with_a_quote(self):
+        r = self.r
+        r.say("Please always gate src/auth at L3")
+        code, out = r.hr("floor", "add", "src/auth/**", "L3", "--quote", "always gate src/auth at L3")
+        self.assertEqual(code, 0, out)
+        self.assertIn("decided by test via chat", out)
+        self.assertEqual(floor.load(Workspace(r.root)), {"src/auth/**": "L3"})
+        self.assertIn('"src/auth/**": L3', self.floor_file.read_text(encoding="utf-8"))
+
+        r.say("make migrations L2 too")
+        self.assertEqual(r.hr("floor", "add", "migrations/**", "L2", "--quote", "migrations L2")[0], 0)
+        r.say("lower auth to L2")
+        code, out = r.hr("floor", "add", "src/auth/**", "L2", "--quote", "lower auth to L2")
+        self.assertIn("(was L3)", out)
+
+        r.say("drop the migrations rule")
+        code, out = r.hr("floor", "remove", "migrations/**", "--quote", "drop the migrations rule")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(floor.load(Workspace(r.root)), {"src/auth/**": "L2"})
+
+    def test_the_human_can_run_it_directly_with_by(self):
+        code, out = self.r.hr("floor", "add", "src/auth/**", "L3", "--by", "alice")
+        self.assertEqual(code, 0, out)
+        self.assertIn("decided by alice via cli", out)
+
+    def test_bad_input_is_refused_before_anything_is_written(self):
+        self.assertEqual(self.r.hr("floor", "add", "src/auth/**", "L7", "--by", "alice")[0], 2)
+        self.assertEqual(self.r.hr("floor", "add", "src/auth/**", "--by", "alice")[0], 2)
+        self.assertEqual(self.r.hr("floor", "remove", "nope/**", "--by", "alice")[0], 2)
+        self.assertFalse(self.floor_file.exists())
+
+    def test_list_shows_the_rules_and_what_the_active_feature_touches(self):
+        r = self.r
+        self.assertIn("no floor", r.hr("floor")[1])
+        r.write(".human-rights/floor.yaml", RULES)
+        r.hr("new", "Tidy")
+        r.write("migrations/0001.sql", "select 1;\n")
+        code, out = r.hr("floor")
+        self.assertEqual(code, 0, out)
+        self.assertIn("L3  src/auth/**", out)
+        self.assertIn("touched by FEAT-001-tidy: migrations/0001.sql", out)
+
+
+def hook(tool, **inp):
+    proc = subprocess.run([sys.executable, str(helpers.PLUGIN / "hooks" / "approval_guard.py")],
+                          input=json.dumps({"tool_name": tool, "tool_input": inp}).encode(), stdout=subprocess.PIPE)
+    out = proc.stdout.decode().strip()
+    if not out:
+        return "allow", ""
+    decision = json.loads(out)["hookSpecificOutput"]
+    return decision["permissionDecision"], decision["permissionDecisionReason"]
+
+
+class FloorHookTest(unittest.TestCase):
+    def test_agent_cannot_edit_the_floor_file(self):
+        for tool, key in (("Write", "file_path"), ("Edit", "file_path"), ("MultiEdit", "file_path"),
+                          ("NotebookEdit", "notebook_path")):
+            for p in ("C:/repo/.human-rights/floor.yaml", "C:\\repo\\.human-rights\\floor.yaml",
+                      "C:/repo/.workflow/floor.yaml"):
+                decision, reason = hook(tool, **{key: p})
+                self.assertEqual(decision, "deny", (tool, p))
+                self.assertIn("hr floor", reason)
+
+    def test_agent_cannot_write_it_from_a_shell(self):
+        for tool in ("Bash", "PowerShell"):
+            for cmd in ("echo '\"src/**\": L0' > .human-rights/floor.yaml",
+                        "sed -i 's/L3/L0/' .human-rights/floor.yaml",
+                        "Set-Content .human-rights\\floor.yaml ''",
+                        "rm .workflow/floor.yaml"):
+                self.assertEqual(hook(tool, command=cmd)[0], "deny", cmd)
+
+    def test_reading_the_floor_is_fine(self):
+        self.assertEqual(hook("Read", file_path="C:/repo/.human-rights/floor.yaml")[0], "allow")
+        self.assertEqual(hook("Bash", command="cat .human-rights/floor.yaml")[0], "allow")
+        self.assertEqual(hook("Bash", command=".human-rights/hr floor")[0], "allow")
+        self.assertEqual(hook("Bash", command=".human-rights/hr classify --axes @a.json --paths src/auth/x.py")[0], "allow")
+
+    def test_floor_changes_are_human_decisions(self):
+        for cmd in (".human-rights/hr floor add src/auth/** L3", ".human-rights/hr floor remove src/auth/**",
+                    'python3 "/x/runtime/hr.py" floor add "src/**" L2 --by me'):
+            decision, reason = hook("Bash", command=cmd)
+            self.assertEqual(decision, "deny", cmd)
+            self.assertIn("`floor add`" if "add" in cmd else "`floor remove`", reason)
+        self.assertEqual(hook("Bash", command='.human-rights/hr floor add "src/**" L2 --quote "gate src"')[0], "allow")
+        self.assertEqual(hook("PowerShell", command='.human-rights\\hr.cmd floor remove "src/**" --quote "drop it"')[0], "allow")
 
 
 if __name__ == "__main__":
