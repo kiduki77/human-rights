@@ -109,8 +109,11 @@ Each row also has its own slash command: `/hrs:init`, `/hrs:new`, `:status`, `:l
    confidence. Criteria are in [routing](references/routing.md). Add flags for physical safety, vehicle
    command, auth, secrets, destructive migration, or irreversible external actions.
    ```bash
-   .human-rights/hr classify --flags vehicle_command --axes @/path/to/axes.json
+   .human-rights/hr classify --flags vehicle_command --paths src/link/conn.py,src/ui/panel.tsx --axes @/path/to/axes.json
    ```
+   Pass `--paths` with the files you expect to touch. The owner may have marked paths that always need a
+   higher level (`.human-rights/floor.yaml`); the runtime raises the mode when your paths, or later the diff, hit
+   one, whatever you scored. You cannot change that file. See the floor in [routing](references/routing.md).
    For L2 and L3, **decide the size in the same command**: `--size single|compound --size-reason "..."`.
    Compound means the request holds two or more results that can each be verified and shipped on their
    own. See [splitting](references/splitting.md). A request that is plainly compound (a specification

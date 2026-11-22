@@ -40,6 +40,35 @@ Gates: L2 and L3 require design approval, and L3 also final approval (`routing.d
 Add a flag when in doubt. Once a flag gate has triggered, the runtime keeps it across reclassification
 (sticky).
 
+## Floor: paths the owner always gates
+
+The axes are your estimate, so an under-scored change would go through ungated. The owner can list paths that
+always need at least a given level in `.human-rights/floor.yaml`:
+
+```yaml
+"migrations/**": L2
+"src/auth/**": L3
+```
+
+- The runtime applies the floor after scoring and after the flags. It raises the mode to the highest matching
+  level and never lowers it. You cannot skip it or score around it. The raise is recorded: the classify output,
+  `state.json` (`routing.floor`) and the `classified` event say which rule fired, on which paths, and the
+  level it was raised from.
+- A rule matches a path when the glob matches (`*` also crosses `/`), when the path is the rule's directory,
+  or when the path is inside it. `**/secrets/*` does not match a top-level `secrets/x`, so the owner lists both.
+- The paths checked are the union of: the files you declare with `--paths` (the files you expect to touch,
+  known before any edit), every file changed between the commit the feature started from and HEAD, and every
+  uncommitted or untracked file. Declared paths cover L0 before the change exists. The real diff covers what
+  you did not expect to touch.
+- The raise follows the normal gates. A floor of L2 adds the design gate, and L3 adds both.
+- Guard: from `executing` onward (`executing`, `verifying_tasks`, `integrating`, `awaiting_final_approval`,
+  `ready_to_merge`, `completed`), a transition is refused with `[floor]` when the declared paths or the diff hit
+  a rule above the feature's mode. Run `hr classify` again with `--paths` and the floor raises the mode. If that
+  adds a design gate after execution started, the next transition is refused until the design is approved:
+  go back through `clarifying` or `rework_required -> planning`.
+- Only the owner changes the floor. Edit the file yourself, or run `hr floor add|remove`, which is a human
+  decision (`--quote`). A hook denies the agent's edits to `floor.yaml`. See [config](config.md#floor).
+
 ## Examples
 
 - "Center the login card." The probe shows only `LoginCard.css` is involved and no shared layout, so

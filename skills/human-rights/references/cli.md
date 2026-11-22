@@ -12,7 +12,9 @@ runtime checks the quote against the human's latest captured message (see
 |---|---|---|
 | `init [--language en\|ko] [--agents preset] [--redpill on\|off --redpill-difficulty D --redpill-one-in N]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; sets the report language, sub-agent models and drill settings the human chose |
 | `new "<title>" --slug s --request "<text>"` | agent | create a feature (`triaging`), make it active |
-| `classify --axes <json\|@file\|-> [--flags a,b] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3) |
+| `classify --axes <json\|@file\|-> [--flags a,b] [--paths p1,p2] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3). `--paths` lists the files you expect to touch; they and the real diff are checked against the owner's floor, which can raise the mode (omitted: the paths from the last classification are kept) |
+| `floor` | anyone | list the owner's floor rules and, with an active feature, the touched paths each rule hits |
+| `floor add <glob> <L0\|L1\|L2\|L3> --quote "<words>"` / `floor remove <glob> --quote "<words>"` | **human decision** | change `.human-rights/floor.yaml`; prints what changed and who decided |
 | `size single\|compound --reason "..."` | agent | record the size decision without scoring axes |
 | `split-check [--json]` | agent | split quality hard gate for a group: features, order, shared decisions, exclusions, group checks |
 | `start [-f group\|feature] [--json]` | agent | start the next waiting feature of a group (dependencies done, one at a time) and print its brief |
