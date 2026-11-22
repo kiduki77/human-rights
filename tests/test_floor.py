@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest import mock
 
-from helpers import L0_AXES, Repo
+from helpers import L0_AXES, L3_AXES, ONE, Repo
 from runtime.config import DEFAULTS, parse_simple_yaml
 from runtime.routing import floor
 from runtime.routing.router import route
@@ -121,6 +121,74 @@ class ClassifyFloorTest(unittest.TestCase):
         self.assertIn("mode: L3", out)
         code, out = self.r.hr("classify", "--axes", L0_AXES, "--paths", "src/app.py")
         self.assertIn("mode: L0", out)
+
+
+class GuardTest(unittest.TestCase):
+    def setUp(self):
+        self.r = Repo()
+        self.r.hr("init")
+        self.r.write(".human-rights/floor.yaml", RULES)
+        self.r.hr("new", "Tidy the login card")
+        self.r.hr("classify", "--axes", L0_AXES)
+        self.r.hr("transition", "executing")
+
+    def tearDown(self):
+        self.r.cleanup()
+
+    def test_gate_that_became_required_after_execution_started_is_not_skipped(self):
+        r = self.r
+        r.write("src/app.py", "print('changed')\n")
+        r.commit("work")
+        l2 = json.loads(L0_AXES)
+        l2["scope"]["score"] = 2
+        code, out = r.hr("classify", "--axes", json.dumps(l2))
+        self.assertIn("mode: L2", out)
+        self.assertEqual(r.hr("verify", "--adhoc", 'python -c "pass"', "--title", "lint")[0], 0)
+        code, out = r.hr("transition", "verifying_tasks")
+        self.assertEqual(code, 3, out)
+        self.assertIn("design", out)
+        self.assertIn("approval", out)
+
+    def test_floored_file_committed_after_verifying_is_refused_at_completed(self):
+        r = self.r
+        self.assertEqual(r.hr("verify", "--adhoc", 'python -c "pass"', "--title", "lint")[0], 0)
+        self.assertEqual(r.hr("transition", "verifying_tasks")[0], 0)
+        r.write("src/auth/login.py", "ok = True\n")
+        r.commit("sneak")
+        code, out = r.hr("transition", "completed")
+        self.assertEqual(code, 3, out)
+        self.assertIn("[floor]", out)
+        self.assertIn("src/auth/login.py", out)
+        self.assertIn("src/auth/**", out)
+        self.assertIn("L3", out)
+        self.assertIn("--paths", out)
+
+    def test_floored_file_blocks_every_step_after_executing(self):
+        r = self.r
+        r.write("migrations/0001.sql", "select 1;\n")
+        code, out = r.hr("transition", "verifying_tasks")
+        self.assertEqual(code, 3, out)
+        self.assertIn("[floor]", out)
+
+    def test_reclassifying_clears_the_floor_but_then_the_design_gate_applies(self):
+        r = self.r
+        self.assertEqual(r.hr("verify", "--adhoc", 'python -c "pass"', "--title", "lint")[0], 0)
+        self.assertEqual(r.hr("transition", "verifying_tasks")[0], 0)
+        r.write("src/auth/login.py", "ok = True\n")
+        r.commit("sneak")
+        code, out = r.hr("classify", "--axes", L0_AXES, "--paths", "src/auth/login.py")
+        self.assertIn("mode: L3", out)
+        code, out = r.hr("transition", "completed")
+        self.assertEqual(code, 3, out)
+        self.assertNotIn("[floor]", out)
+        self.assertIn("design", out)
+
+    def test_floor_below_the_mode_is_not_a_problem(self):
+        r = self.r
+        r.hr("classify", "--axes", L3_AXES, *ONE, "--flags", "vehicle_command")
+        r.write("migrations/0001.sql", "select 1;\n")
+        code, out = r.hr("transition", "verifying_tasks")
+        self.assertNotIn("[floor]", out)
 
 
 if __name__ == "__main__":

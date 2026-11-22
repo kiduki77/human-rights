@@ -105,6 +105,30 @@ def _classified_since_entry(feature: Feature, state: str) -> bool:
     return False
 
 
+FLOOR_STATES = ("executing", "verifying_tasks", "integrating", "awaiting_final_approval", "ready_to_merge", "completed")
+LATE_STATES = FLOOR_STATES[1:]
+
+
+def _floor_problems(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
+    from runtime.routing import floor
+    from runtime.routing.router import MODES, floor_level
+
+    if target not in FLOOR_STATES:
+        return []
+    ws = feature.ws
+    declared = (st.get("routing") or {}).get("declared_paths") or []
+    hits = floor.hits(floor.load(ws), floor.touched(ws, st, declared))
+    top = floor_level(hits)
+    mode = st.get("mode")
+    if not top or (mode in MODES and MODES.index(top) <= MODES.index(mode)):
+        return []
+    worst = [h for h in hits if h["level"] == top]
+    named = "; ".join(f"`{h['pattern']}` ({h['level']}): {', '.join(h['paths'][:5])}" for h in worst)
+    paths = ",".join(p for h in worst for p in h["paths"][:10])
+    return [f"[floor] the owner requires at least {top} for {named}, but this feature is {mode}. Re-run "
+            f"`hr classify --axes ... --paths \"{paths}\"` so the floor applies"]
+
+
 def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     from runtime.approvals.gates import design_status, final_status
     from runtime import groups
@@ -162,6 +186,12 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     if cur == "clarifying" and not _classified_since_entry(feature, cur):
         problems.append("reclassify after clarifying: re-score the axes with the user's answers (ambiguity at "
                         "least) and run `hr classify` before moving on")
+
+    problems += _floor_problems(feature, st, target)
+    if target in LATE_STATES and st["required_gates"].get("design") and not design_status(feature, st)["valid"]:
+        problems.append("the design gate is required but has no valid approval - it became required after execution "
+                        "started. Go back (executing -> clarifying, or rework_required -> planning -> "
+                        "awaiting_design_approval) and ask the human to approve the design first")
 
     req = feature.requirements()
     if target == "awaiting_design_approval" or (target == "executing" and mode in ("L2", "L3")):
