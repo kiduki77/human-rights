@@ -13,7 +13,7 @@ refuses a decision that does not run at a terminal (exit `3`).
 |---|---|---|
 | `init [--language en\|ko] [--agents preset] [--redpill on\|off --redpill-difficulty D --redpill-one-in N]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; sets the report language, sub-agent models and drill settings the human chose |
 | `new "<title>" --slug s --request "<text>"` | agent | create a feature (`triaging`), make it active |
-| `classify --axes <json\|@file\|-> [--flags a,b] [--paths p1,p2] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3). `--paths` lists the files you expect to touch; they and the real diff are checked against the owner's floor, which can raise the mode (omitted: the paths from the last classification are kept) |
+| `classify --axes <json\|@file\|-> [--flags a,b] [--paths p1,p2] [--concept "..." --searched a,b --consumers p1,p2] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3). `--paths` lists the files you expect to touch; they and the real diff are checked against the owner's floor, which can raise the mode (omitted: the paths from the last classification are kept) |
 | `floor` | anyone | list the owner's floor rules and, with an active feature, the touched paths each rule hits |
 | `floor add <glob> <L0\|L1\|L2\|L3> --quote "<words>"` / `floor remove <glob> --quote "<words>"` | **human decision** | change `.human-rights/floor.yaml` and record it in `floor.seal`; prints what changed and who decided |
 | `floor accept --quote "<words>"` | **human decision** | record `floor.yaml` as it is now, after the owner edited it by hand or when `[floor]` reports a change nobody recorded |
@@ -50,6 +50,8 @@ refuses a decision that does not run at a terminal (exit `3`).
 | `reject design\|final\|split --reason ... [--to state] [--quote "<words>"]` | agent (records the human's request) | change request |
 | `unblock --quote "<words>" --note ...` | **human decision** | release an escalation |
 | `scope-change --task T --reason ...` | agent | change outside the task boundary found -> `clarifying` |
+| `impact` | anyone | print the impact table: other places that use what this change touches |
+| `impact --recheck --searched a,b [--note]` | agent | record the second search, made from the written code, for the current commit; required before `awaiting_final_approval` at L2/L3 |
 | `render` | agent | refresh the `hr:*` blocks from evidence |
 | `doc-check` | agent | document quality gate: structure, links, diagrams, and filler wording in documents and plan text |
 | `check` | anyone | integrity: event chain, schemas, approvals, plan, docs |

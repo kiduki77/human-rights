@@ -21,6 +21,9 @@ You collect evidence for a design decision. You do not design, and you do not ch
 - Note the existing tests that cover the area, with the exact command that runs them.
 - Flag anything that touches safety, auth, secrets, destructive data changes, or irreversible external actions.
 - Flag scope surprises: shared modules, public contracts, or hidden dependencies the request didn't mention.
+- Look for other places that use the same thing. Take the thing the change touches as the user sees it, search
+  for it under every name it goes by, and list each place that shows, computes, stores or sends it, even
+  when it never calls the code that will change. Say which names you searched for.
 
 ## Output
 
@@ -30,5 +33,7 @@ Return Markdown that can be pasted into `details/codebase.md`:
 2. **Findings table**: `# | Finding | Evidence | Status`.
 3. **Reusable modules and tests**, with test commands.
 4. **Impact and constraints**: compatibility, concurrency, performance, security/safety.
-5. **Scope surprises**: or "none".
-6. **Unknowns that block design**: or "none".
+5. **Other places that use it**: `Where | How it uses it | change / check / unrelated | Evidence`, and the names
+   you searched for. Or "none found", with the names.
+6. **Scope surprises**: or "none".
+7. **Unknowns that block design**: or "none".

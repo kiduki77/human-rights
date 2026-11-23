@@ -17,7 +17,15 @@
    the runtime refuses an earlier pass. Show the steps and their pass criteria from `verification.md`, and
    ask the human to report the result in chat. Record their reply:
    `hr record-manual TEST-013 passed --quote "<their words>" [--evidence <link>]`
-5. `hr render` refreshes the result tables in `verification.md` and `overview.md`.
+5. **Search again for other users**, now from the code that was written. Read the diff, take the names it
+   really touches (they often differ from the ones you planned with), and search for other places that use
+   the same thing. Record it on the final commit: `hr impact --recheck --searched <names>`. At L2 and L3 the
+   runtime refuses `awaiting_final_approval` without a record for the current code, and a later commit makes
+   the record stale. If the search finds a place that is not in the impact table, add it to
+   `requirements.json` with a task or a test. That is a plan change, so the design approval is invalidated
+   and the human sees the new row before it is approved again. Do not record a search that found something
+   as if it had found nothing.
+6. `hr render` refreshes the result tables in `verification.md` and `overview.md`, and the impact table.
 
 ## Handling failures
 

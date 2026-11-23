@@ -10,7 +10,7 @@ the same fact into several places.
 
 | File | Writer | Content |
 |---|---|---|
-| `requirements.json` | agent | revision, goal, scope, requirements (+acceptance), decisions, open_questions, assumptions |
+| `requirements.json` | agent | revision, goal, scope, requirements (+acceptance), decisions, open_questions, assumptions, impact (L2/L3: other places that use what changes) |
 | `task-graph.json` | agent (`status` / `verified_evidence` via `hr task`) | tasks |
 | `test-plan.json` | agent (in L0/L1, `hr verify --adhoc` may add tests) | tests |
 | `state.json` | **runtime only** | state, mode, gates, approvals, git/GitHub links |

@@ -105,12 +105,20 @@ Each row also has its own slash command: `/hrs:init`, `/hrs:new`, `:status`, `:l
 2. **Lightweight code probe.** Briefly find the relevant files, symbols, call paths and existing tests: a
    few searches, a few files. The goal is evidence for classification, not a design. Check whether the
    change touches shared layout, a public API, or a safety path.
+   **Then look for the other places that use the same thing.** Name what the request changes as the user
+   sees it ("the waypoint's display number", not "the map pin"), and search for it under every name it goes
+   by. A place that shows, computes, stores or sends the same thing is affected even when it never calls the
+   code you will edit, so a reference search does not find it. What you find is part of the `scope` and
+   `dependency` evidence. See [routing](references/routing.md#other-places-that-use-the-same-thing).
 3. **Classify.** Score the six axes 0-3, each with its basis, whether you confirmed it, and your
    confidence. Criteria are in [routing](references/routing.md). Add flags for physical safety, vehicle
    command, auth, secrets, destructive migration, or irreversible external actions.
    ```bash
-   .human-rights/hr classify --flags vehicle_command --paths src/link/conn.py,src/ui/panel.tsx --axes @/path/to/axes.json
+   .human-rights/hr classify --flags vehicle_command --paths src/link/conn.py,src/ui/panel.tsx --axes @/path/to/axes.json \
+     --concept "which vehicle a command goes to" --searched target_system,active_connection --consumers src/telemetry/log.py
    ```
+   `--concept`, `--searched` and `--consumers` record that search. Pass them on every classification,
+   L0 included; `--consumers` is empty when the search found nothing.
    Pass `--paths` with the files you expect to touch. The owner may have marked paths that always need a
    higher level (`.human-rights/floor.yaml`); the runtime raises the mode when your paths, or later the diff, hit
    one, whatever you scored. You cannot change that file. See the floor in [routing](references/routing.md).
@@ -177,7 +185,7 @@ lines.
 | Quality gate | `planning` | `hr plan-check` with zero hard fails, plus an independent review | [planning](references/planning.md) |
 | Design approval | `awaiting_design_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Implement & verify tasks | `executing` / `verifying_tasks` | Tasks in DAG order: commit, `hr verify --task`, `hr task ... verified` | [execution](references/execution.md) |
-| Integration testing | `integrating` | Scripts, then agent tests (`hr-tester`), then human tests; every result valid for the final commit; failure loop | [integration](references/integration.md) |
+| Integration testing | `integrating` | Scripts, then agent tests (`hr-tester`), then human tests; every result valid for the final commit; failure loop; then the second search for other users, `hr impact --recheck` | [integration](references/integration.md) |
 | Final approval | `awaiting_final_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Merge | `ready_to_merge` | `hr merge-check`, a human merges, then `hr transition completed` | [github](references/github.md) |
 

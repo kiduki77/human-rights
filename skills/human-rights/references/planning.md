@@ -111,7 +111,9 @@ Machines first. A human tests only what a machine cannot.
    missing verification method, a dependency cycle, a risky policy decided without the user, an
    unresolved interface conflict, an open blocking or safety question, (L2/L3) no integration test, a
    human test without `human_reason`, an agent or human test whose steps lack `expect`, no `regression`
-   scope and rationale, or a task without `changes_flow`.
+   scope and rationale, a task without `changes_flow`, or (L2/L3) no `impact` in `requirements.json`, an
+   impact row without evidence, a `change` row without a task, a `check` row without a real test, or an
+   `unrelated` row without a reason ([investigation](investigation.md#impact-other-places-that-use-it)).
    Fix warnings, or record in `design.md` why one stays.
 2. Independent review: give `hr-plan-reviewer` only the feature directory path, not your own conclusions.
    It reviews requirement coverage, cohesion, verifiability, dependency soundness, reviewability, and
