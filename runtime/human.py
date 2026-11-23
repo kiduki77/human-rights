@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -66,7 +67,7 @@ def verify(ws: Workspace, quote: str, since: Optional[str] = None) -> Dict[str, 
     entry = latest(ws)
     if entry is None:
         raise GateError("no human message has been captured. The human-rights prompt hook must be installed "
-                        "(Claude Code plugin), or the human runs the command themselves with `!`.")
+                        "(Claude Code plugin), or the human runs the command in their own terminal with --by.")
     if q not in _norm(entry.get("text", "")):
         raise GateError("--quote does not match the human's latest message. Quote their exact words; "
                         "a chat action needs a real human message behind it.")
@@ -79,10 +80,28 @@ def default_name(ws: Workspace) -> str:
     return git(ws.root, "config", "user.name") or "human"
 
 
-def resolve(ws: Workspace, by: Optional[str], quote: Optional[str], since: Optional[str] = None) -> Dict[str, Any]:
+def at_terminal() -> bool:
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+def require_terminal() -> None:
+    if not at_terminal():
+        raise GateError("without --quote this is a human decision made at a terminal, and this process has none: "
+                        "a tool or a script started it. In chat, the human decides in a message and the agent "
+                        "passes their exact words with --quote. Otherwise the human runs the command in their own "
+                        "terminal.")
+
+
+def resolve(ws: Workspace, by: Optional[str], quote: Optional[str], since: Optional[str] = None,
+            terminal: bool = True) -> Dict[str, Any]:
     if quote is None:
         if not by:
             raise HRError("--by is required (or --quote with the human's chat message)")
+        if terminal:
+            require_terminal()
         return {"by": by, "via": "cli"}
     proof = verify(ws, quote, since)
     return {"by": by or default_name(ws), "via": "chat", **proof}

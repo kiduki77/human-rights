@@ -820,7 +820,8 @@ def cmd_reject(ws: Workspace, args) -> int:
     from runtime import human
 
     target = args.to or {"design": "clarifying", "split": "splitting"}.get(args.gate, "rework_required")
-    proof = human.proof_fields(human.resolve(ws, args.by or "user (chat)", args.quote, _gate_since(f, args)))
+    who = human.resolve(ws, args.by or "user (chat)", args.quote, _gate_since(f, args), terminal=False)
+    proof = human.proof_fields(who)
     f.emit("approval_rejected", gate=args.gate, reason=args.reason, by=args.by or "user (chat)", **proof)
     machine.transition(f, target, f"{args.gate} change requested: {args.reason}")
     print(f"change request recorded | state -> {target}")
@@ -1148,8 +1149,11 @@ def cmd_redpill(ws: Workspace, args) -> int:
     from runtime import human
 
     ws.require_init()
-    if args.redpill_cmd in ("on", "off") and args.quote is not None:
-        human.verify(ws, args.quote)
+    if args.redpill_cmd in ("on", "off"):
+        if args.quote is not None:
+            human.verify(ws, args.quote)
+        else:
+            human.require_terminal()
     if args.redpill_cmd in ("brief", "seed"):
         f = _feature(ws, args)
         if not args.gate:
