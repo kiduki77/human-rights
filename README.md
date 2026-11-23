@@ -299,7 +299,8 @@ you> I fixed the SITL image, retry                                      releases
 A `UserPromptSubmit` hook captures what you type. The agent records your decision with
 `hr ... --quote "<your words>"`, and the runtime accepts it only if the quote is in your latest message,
 sent after the gate opened. The agent can't approve on its own: without a quote from you, a plugin hook
-denies those commands. If you prefer, you can still run them yourself (`! .human-rights/hr approve design --by alice`).
+denies those commands. If you prefer, you can still run them yourself in your own terminal
+(`.human-rights/hr approve design --by alice`). Without a quote the runtime accepts a decision only at a terminal.
 
 ## Red pill mode
 

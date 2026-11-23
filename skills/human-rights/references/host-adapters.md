@@ -11,7 +11,8 @@ sub-agents, and how human decisions reach the runtime differ by host.
   message the human types. The agent records a decision with `hr ... --quote "<their words>"`, and the runtime
   checks the quote against that stored message. The plugin hook `hooks/approval_guard.py` denies those
   commands when they have no `--quote`, and blocks direct writes to the prompt log and to runtime-owned files.
-- The human can still run any decision directly with the `!` prefix (`! .human-rights/hr approve design --by alice`).
+- The human can still run any decision directly in their own terminal (`.human-rights/hr approve design --by alice`).
+  The `!` prefix does not work for this: without `--quote` the runtime accepts a decision only at a terminal.
 - Questions: use `AskUserQuestion` when it fits (3-5 questions, each with a recommended option first).
 - Sub-agents: `hr-investigator` (read-only) and `hr-plan-reviewer` (independent review) through the Agent tool.
   Give each a self-contained brief: the goal, the feature directory path, and what is already ruled out.
@@ -25,7 +26,8 @@ sub-agents, and how human decisions reach the runtime differ by host.
 - Point the host at `skills/human-rights/SKILL.md` as its instructions (or as a custom prompt/rule).
 - If the host has no prompt hook, `--quote` has nothing to check against and is refused. The human runs
   decisions directly (`.human-rights/hr approve design --by <name>`) in their own terminal.
-- If the host has no tool hooks, nothing technically blocks the agent from running those commands.
+- If the host has no tool hooks, the runtime still refuses `--by` from a process without a terminal, which is
+  how an agent's tool call runs. Nothing else blocks the agent there.
   Enforce merges with GitHub branch protection (required reviews, required checks), and treat
   `.human-rights` approvals as records that get cross-checked against GitHub's approval history.
 - Parallel batches work on any host that can run shell commands. The briefs are plain text, so a host
