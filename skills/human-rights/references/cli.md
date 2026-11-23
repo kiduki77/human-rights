@@ -15,7 +15,8 @@ refuses a decision that does not run at a terminal (exit `3`).
 | `new "<title>" --slug s --request "<text>"` | agent | create a feature (`triaging`), make it active |
 | `classify --axes <json\|@file\|-> [--flags a,b] [--paths p1,p2] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3). `--paths` lists the files you expect to touch; they and the real diff are checked against the owner's floor, which can raise the mode (omitted: the paths from the last classification are kept) |
 | `floor` | anyone | list the owner's floor rules and, with an active feature, the touched paths each rule hits |
-| `floor add <glob> <L0\|L1\|L2\|L3> --quote "<words>"` / `floor remove <glob> --quote "<words>"` | **human decision** | change `.human-rights/floor.yaml`; prints what changed and who decided |
+| `floor add <glob> <L0\|L1\|L2\|L3> --quote "<words>"` / `floor remove <glob> --quote "<words>"` | **human decision** | change `.human-rights/floor.yaml` and record it in `floor.seal`; prints what changed and who decided |
+| `floor accept --quote "<words>"` | **human decision** | record `floor.yaml` as it is now, after the owner edited it by hand or when `[floor]` reports a change nobody recorded |
 | `size single\|compound --reason "..."` | agent | record the size decision without scoring axes |
 | `split-check [--json]` | agent | split quality hard gate for a group: features, order, shared decisions, exclusions, group checks |
 | `start [-f group\|feature] [--json]` | agent | start the next waiting feature of a group (dependencies done, one at a time) and print its brief |

@@ -56,6 +56,15 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
 - **Depth comes from repeating the rule, not from fixed levels (v0.5).** A feature created by a split is
   judged for size again when it starts, so a group nests only where the work is actually compound. A part
   that cannot be verified alone stays a task.
+- **The floor carries a record of the owner's last decision.** The hook that keeps the agent away from
+  `floor.yaml` reads the text of a command, and text cannot cover every way a shell changes a file. So the
+  runtime checks the result instead of the command: `hr floor add|remove|accept` write a hash of the rules to
+  `floor.seal`, and `hr classify` and the guard refuse while the file and the record disagree. Removing both
+  files is caught in two ways. A feature remembers at classification that a floor was recorded, and
+  `hr classify` looks for `floor.seal` in the git history. The hash covers the parsed rules, so line endings
+  and comments are free. A mismatch stops every feature, because a changed file cannot say which paths it used
+  to cover. A workspace that already has a `floor.yaml` needs one `hr floor accept`. Like the approvals, this
+  is not a security boundary: an agent that rewrites the file and a matching record on purpose gets through.
 - **`--by` works only at a terminal.** A human-only command without `--quote` used to be stopped by the
   PreToolUse hook alone, which reads the text of the command. A call the pattern did not recognise reached the
   runtime, and the runtime took `--by` on trust. Now the runtime refuses such a decision unless stdin and stdout
