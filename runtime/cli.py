@@ -160,10 +160,14 @@ def cmd_classify(ws: Workspace, args) -> int:
         declared = list((st.get("routing") or {}).get("declared_paths") or [])
     else:
         declared = [x.strip() for x in args.paths.split(",") if x.strip()]
+    tampered = floor.problem(ws, st, history=True)
+    if tampered:
+        raise GateError(tampered)
     hits = floor.hits(floor.load(ws), floor.touched(ws, st, declared))
     result = route(_read_json_arg(args.axes), flags, ws.config(), hits)
     notes = apply_route(st, result, now())
     st["routing"]["declared_paths"] = declared
+    st["routing"]["floor_seal"] = (floor.read_seal(ws) or {}).get("rules_sha256")
     st["size"] = _size_record(args.size, args.size_reason)
     f.save_state(st)
     f.emit("classified", mode=st["mode"], flags=result["flags"], effective_scores=result["effective_scores"],
@@ -1213,7 +1217,22 @@ def cmd_floor(ws: Workspace, args) -> int:
 
     ws.require_init()
     rules = floor.load(ws)
+    tampered = floor.problem(ws, history=True)
+    if args.action == "accept":
+        who = human.resolve(ws, args.by, args.quote)
+        floor.seal(ws, rules, who)
+        fid = ws.active_feature_id()
+        if fid:
+            ws.resolve(fid).emit("floor_changed", actor=f"human:{who['by']}", action="accept", rules=rules,
+                                 **human.proof_fields(who))
+        for pattern in sorted(rules):
+            print(f"{rules[pattern]}  {pattern}")
+        print(f"floor: accepted as it is now ({len(rules)} rule{'' if len(rules) == 1 else 's'}) "
+              f"| decided by {who['by']} via {who['via']}")
+        return 0
     if args.action == "list":
+        if tampered:
+            print(tampered)
         if not rules:
             print("no floor: no path is always gated. The owner adds one with `hr floor add <glob> <level>`.")
             return 0
@@ -1231,6 +1250,8 @@ def cmd_floor(ws: Workspace, args) -> int:
         return 0
     if not args.pattern:
         raise HRError(f"hr floor {args.action} needs a glob")
+    if tampered:
+        raise GateError(tampered)
     pattern = floor.check_pattern(args.pattern)
     if args.action == "add":
         if args.level not in MODES:
@@ -1243,6 +1264,7 @@ def cmd_floor(ws: Workspace, args) -> int:
         change = {"action": "remove", "pattern": pattern, "level": None, "previous": rules.pop(pattern)}
     who = human.resolve(ws, args.by, args.quote)
     floor.save(ws, rules)
+    floor.seal(ws, rules, who)
     fid = ws.active_feature_id()
     if fid:
         ws.resolve(fid).emit("floor_changed", actor=f"human:{who['by']}", **change, **human.proof_fields(who))
@@ -1451,9 +1473,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--language", help="en or ko (default: docs.language)")
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
-    sp = add("floor", cmd_floor, "[add/remove are human decisions: --by, or --quote from chat] paths that always need at least a level",
+    sp = add("floor", cmd_floor, "[add/remove/accept are human decisions: --by, or --quote from chat] paths that always need at least a level",
              feature=False)
-    sp.add_argument("action", nargs="?", choices=("list", "add", "remove"), default="list")
+    sp.add_argument("action", nargs="?", choices=("list", "add", "remove", "accept"), default="list")
     sp.add_argument("pattern", nargs="?", help="glob such as src/auth/**")
     sp.add_argument("level", nargs="?", help="L0, L1, L2 or L3 (add only)")
     sp.add_argument("--by")

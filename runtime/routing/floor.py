@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Optional
 
-from runtime.common import (EXCLUDE_SPECS, HRError, changed_files_since, dirty_paths, git, head_sha, path_matches,
-                            write_text_atomic)
+from runtime.common import (EXCLUDE_SPECS, HRError, canonical, changed_files_since, dirty_paths, git, head_sha, now,
+                            path_matches, sha256_bytes, write_text_atomic)
 from runtime.routing.router import MODES
 from runtime.state.store import Workspace
 
 Floor = Dict[str, str]
 
 FILENAME = "floor.yaml"
+SEAL = "floor.seal"
+ACCEPT = ("The owner checks the file and runs `hr floor accept` (a human decision: `--quote` in chat, or `--by` at "
+          "a terminal)")
 HEADER = (
     "# Paths that always need at least the given level.\n"
     "# Changed only by the owner (by hand or `hr floor add/remove --quote`).\n"
@@ -54,6 +58,56 @@ def check_pattern(pattern: str) -> str:
 def save(ws: Workspace, rules: Floor) -> None:
     lines = [f'"{check_pattern(k)}": {rules[k]}' for k in sorted(rules)]
     write_text_atomic(path(ws), HEADER + "\n".join(lines) + ("\n" if lines else ""))
+
+
+def seal_path(ws: Workspace):
+    return ws.wf / SEAL
+
+
+def rules_hash(rules: Floor) -> str:
+    return sha256_bytes(canonical(rules))
+
+
+def read_seal(ws: Workspace) -> Optional[Dict[str, Any]]:
+    p = seal_path(ws)
+    if not p.exists():
+        return None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def seal(ws: Workspace, rules: Floor, who: Dict[str, Any]) -> Dict[str, Any]:
+    record = {"rules_sha256": rules_hash(rules), "at": now(),
+              **{k: who[k] for k in ("by", "via", "quote", "prompt_sha256") if k in who}}
+    write_text_atomic(seal_path(ws), json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    return record
+
+
+def _in_history(ws: Workspace) -> bool:
+    rel = seal_path(ws).relative_to(ws.root).as_posix()
+    return bool(git(ws.root, "log", "-1", "--format=%H", "--", rel))
+
+
+def problem(ws: Workspace, st: Optional[Dict[str, Any]] = None, history: bool = False) -> Optional[str]:
+    rules = load(ws)
+    sealed = read_seal(ws)
+    if sealed is None:
+        if rules:
+            return f"[floor] {FILENAME} holds rules that no owner decision recorded. {ACCEPT}"
+        known = bool(((st or {}).get("routing") or {}).get("floor_seal")) or (history and _in_history(ws))
+        if known:
+            return (f"[floor] the floor and its record ({SEAL}) are gone, and there was a floor before. {ACCEPT}, "
+                    "or restores both files")
+        return None
+    if sealed.get("rules_sha256") != rules_hash(rules):
+        gone = "" if path(ws).exists() else " (the file is missing)"
+        since = f" by {sealed['by']} at {sealed['at']}" if sealed.get("by") and sealed.get("at") else ""
+        return (f"[floor] {FILENAME} is not what the owner last decided{since}{gone}. Nothing recorded this "
+                f"change. {ACCEPT}")
+    return None
 
 
 def touched(ws: Workspace, st: Dict[str, Any], declared: List[str]) -> List[str]:

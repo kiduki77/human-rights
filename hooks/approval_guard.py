@@ -4,14 +4,14 @@ import re
 import sys
 
 HUMAN_ONLY = re.compile(
-    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|floor\s+(?:add|remove)|redpill\s+(?:on|off|reveal))\b"
+    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|floor\s+(?:add|remove|accept)|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
     r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
     r"|\.local[/\\]+prompts\.jsonl)"
 )
-FLOOR = re.compile(r"\.(?:human-rights|workflow)[/\\]+floor\.yaml")
+FLOOR = re.compile(r"\.(?:human-rights|workflow)[/\\]+floor\.(?:yaml|seal)")
 SECRET = re.compile(r"redpill(?:-pool)?\.json")
 QUOTE = re.compile(r"\s--quote(?:\s|=)")
 WRITE_HINT = re.compile(
@@ -22,9 +22,9 @@ WRITE_HINT = re.compile(
 
 
 FLOOR_MESSAGE = (
-    "human-rights: floor.yaml belongs to the owner. It lists the paths that always need a minimum level, and the "
-    "agent cannot change it. The owner changes it by hand, or in chat through "
-    "`hr floor add|remove ... --quote \"<their words>\"`."
+    "human-rights: floor.yaml and floor.seal belong to the owner. They hold the paths that always need a minimum "
+    "level and the record of the owner's last decision, and the agent cannot change them. The owner changes the "
+    "floor in chat through `hr floor add|remove|accept ... --quote \"<their words>\"`."
 )
 
 
