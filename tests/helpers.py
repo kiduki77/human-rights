@@ -13,12 +13,25 @@ from pathlib import Path
 PLUGIN = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN))
 
+from runtime import human
 from runtime.cli import main
+
+human.at_terminal = lambda: True
 
 EXAMPLE = Path(__file__).resolve().parent / "fixtures" / "FEAT-001-multi-drone"
 PY = f'"{sys.executable}"'
 PASS_CMD = f'{PY} -c "import sys; sys.exit(0)"'
 FAIL_CMD = f'{PY} -c "import sys; print(\'boom\'); sys.exit(1)"'
+
+
+@contextlib.contextmanager
+def no_terminal():
+    before = human.at_terminal
+    human.at_terminal = lambda: False
+    try:
+        yield
+    finally:
+        human.at_terminal = before
 
 
 def git(root: Path, *args: str) -> str:
