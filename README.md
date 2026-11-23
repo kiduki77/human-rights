@@ -450,6 +450,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 <repo>/.human-rights/
 ├── config.yaml                 repository policy
 ├── floor.yaml                  (optional) paths that always need at least a level, owner-only
+├── floor.seal                  what the floor was at the owner's last decision
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
 ├── features/FEAT-001-multi-drone/          a feature on its own

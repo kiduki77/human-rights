@@ -50,7 +50,10 @@ The main conversation (the planner and coordinator) always runs on the session's
 Paths that always need at least a given level are not in `config.yaml`. They are in
 `.human-rights/floor.yaml`, a glob-to-level map (`"src/auth/**": L3`). `config.yaml` is the agent's to edit
 freely, so a floor kept there could be deleted by the model it binds. The `floor.yaml` file is changed only by
-the owner, by hand or with `hr floor add|remove --quote`, and a hook denies the agent's edits to it. How it
+the owner with `hr floor add|remove --quote`, and a hook denies the agent's edits to it. Each change records a
+hash of the rules in `.human-rights/floor.seal`, and the runtime refuses to classify or to move a feature on
+while the file and the record disagree. After an edit by hand the owner runs `hr floor accept`. Commit both
+files. How it
 applies: [routing](routing.md#floor-paths-the-owner-always-gates).
 
 The file supports YAML comments if your team wants to annotate its own policy. The runtime ignores them.

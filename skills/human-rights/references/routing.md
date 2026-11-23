@@ -66,8 +66,16 @@ always need at least a given level in `.human-rights/floor.yaml`:
   a rule above the feature's mode. Run `hr classify` again with `--paths` and the floor raises the mode. If that
   adds a design gate after execution started, the next transition is refused until the design is approved:
   go back through `clarifying` or `rework_required -> planning`.
-- Only the owner changes the floor. Edit the file yourself, or run `hr floor add|remove`, which is a human
-  decision (`--quote`). A hook denies the agent's edits to `floor.yaml`. See [config](config.md#floor).
+- Only the owner changes the floor, with `hr floor add|remove`, which is a human decision (`--quote`). Each
+  change records a hash of the rules in `.human-rights/floor.seal`. A hook denies the agent's edits to both
+  files. See [config](config.md#floor).
+- The runtime compares the file with that record at `hr classify` and at every transition from `executing`
+  onward. A file that differs, a missing file, rules with no record, or both files gone where a floor existed
+  before are refused with `[floor]`, for every feature. Layout and comments do not count; only the rules do.
+  When you see this, stop and show the message to the human. Do not restore or edit either file.
+- An owner who edits `floor.yaml` by hand runs `hr floor accept` afterwards. It prints the rules as they are
+  and records them. `hr floor add|remove` are refused until then, so that a new rule does not record a changed
+  file along with it.
 
 ## Examples
 
