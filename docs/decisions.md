@@ -56,6 +56,13 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
 - **Depth comes from repeating the rule, not from fixed levels (v0.5).** A feature created by a split is
   judged for size again when it starts, so a group nests only where the work is actually compound. A part
   that cannot be verified alone stays a task.
+- **`--by` works only at a terminal.** A human-only command without `--quote` used to be stopped by the
+  PreToolUse hook alone, which reads the text of the command. A call the pattern did not recognise reached the
+  runtime, and the runtime took `--by` on trust. Now the runtime refuses such a decision unless stdin and stdout
+  are a terminal. A tool call has neither, however the command is written. The cost is that `!` with `--by`
+  no longer works, because `!` runs without a terminal too. The human decides in chat, or in their own
+  terminal. A change request (`hr reject`) stays open, since it only sends work back. This is still not a
+  security boundary: an agent that sets out to fake a terminal or to write the state files can do it.
 - **A group needs a check that crosses its features (v0.5).** Features that pass on their own can fail
   when joined. Without a required cross-feature check the split is rejected.
 - **A drill has to look like a real miss.** In use, the planted items came out alike, and many were a

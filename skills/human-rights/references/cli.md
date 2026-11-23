@@ -6,7 +6,8 @@ Exit codes: `0` ok, `1` a test failed, `2` usage or data error, `3` blocked by a
 
 **Human decisions** are made in chat. The agent runs them with `--quote "<the human's exact words>"`, and the
 runtime checks the quote against the human's latest captured message (see
-[approvals](approvals.md#chat-decisions)). The human can also run them directly with `--by <name>`.
+[approvals](approvals.md#chat-decisions)). The human can also run them directly with `--by <name>`, in their own terminal. Without `--quote` the runtime
+refuses a decision that does not run at a terminal (exit `3`).
 
 | Command | Who | What it does |
 |---|---|---|

@@ -37,8 +37,10 @@ Rules:
   resubmit, or explain why it is fine. Then wait for the human's next message.
 - If the message is ambiguous ("음…", "나중에"), don't record anything. Ask.
 - `--by` defaults to the repository's `git config user.name`.
-- A human can still run any of these themselves with `! .human-rights/hr ... --by <name>`. Hosts without a
-  prompt hook need that path. See [host-adapters](host-adapters.md).
+- A human can still run any of these themselves with `.human-rights/hr ... --by <name>`, in their own terminal.
+  Without `--quote` the runtime refuses the decision unless it runs at a terminal, so a tool call or a script
+  cannot carry `--by`. This includes the `!` prefix, which has no terminal either. Hosts without a prompt hook
+  need the terminal path. See [host-adapters](host-adapters.md).
 
 ## Requesting split approval (`awaiting_split_approval`)
 
