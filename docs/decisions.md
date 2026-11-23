@@ -56,6 +56,16 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
 - **Depth comes from repeating the rule, not from fixed levels (v0.5).** A feature created by a split is
   judged for size again when it starts, so a group nests only where the work is actually compound. A part
   that cannot be verified alone stays a task.
+- **The plan lists the other places that use what a change touches.** The probe used to look only for where
+  to edit, so a change to one of several places that show the same thing was graded as a one-file change and
+  the others were never looked at. Now the search for other users is part of the probe at every grade and is
+  recorded with the classification. At L2 and L3 it becomes the `impact` section of `requirements.json`: each
+  place is changed (and has a task), checked without being changed (and has a test), or left alone (with a
+  reason), and the plan check refuses a row with nothing behind it. It lives in `requirements.json` so the
+  design approval covers it. The search is repeated on the written code and bound to the commit, because the
+  plan's names are a guess. The runtime cannot do the search or tell whether it was thorough. It makes the
+  result visible and makes each row answerable. A graph of feature dependencies kept across features was
+  rejected: relations without evidence would pile up.
 - **The floor carries a record of the owner's last decision.** The hook that keeps the agent away from
   `floor.yaml` reads the text of a command, and text cannot cover every way a shell changes a file. So the
   runtime checks the result instead of the command: `hr floor add|remove|accept` write a hash of the rules to

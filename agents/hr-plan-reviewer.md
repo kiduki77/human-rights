@@ -38,6 +38,7 @@ several features left for each one to make separately?
 | Reviewability | Could a human understand the intent, risk and evidence of each task in minutes? |
 | Wording | In whatever language the documents use: does every sentence state something checkable about this feature, or could it sit unchanged in any other document? Flag brochure words, claims of importance, self-praise, stock transitions, and word-for-word translated filler, with the plain replacement |
 | Integrability | Would the tasks combined satisfy the feature scenarios? Is the integration plan enough to call this done? |
+| Impact | Does `impact` name the thing that changes as the user sees it, or a file? Were the other names it goes by searched? Search once yourself: is a place that shows, computes, stores or sends it missing from the table? Would the test behind each `check` row fail if that place broke? Does an `unrelated` reason hold up? |
 
 **Hard fails**, which no score can outweigh: a missing must requirement; no verification method; a
 dependency cycle; a risky or safety policy decided without the user; an unresolved interface conflict; an

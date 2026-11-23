@@ -77,6 +77,28 @@ always need at least a given level in `.human-rights/floor.yaml`:
   and records them. `hr floor add|remove` are refused until then, so that a new rule does not record a changed
   file along with it.
 
+## Other places that use the same thing
+
+The probe finds where to edit. That is not the same as what the change affects. "Show the waypoint number
+on each map pin" edits one marker component, and the altitude card that also shows a waypoint number never
+calls it. A reference search returns nothing, the pins get numbers, the card keeps its old numbering, and
+every test passes.
+
+Before you score:
+
+1. Name the thing the request changes, as the user sees it: a value, an order, a label, a state, an
+   identifier. Not the file.
+2. Search for it under each name it goes by (`waypoint`, `sequence`, `order`, `index`), and look at who
+   produces it, who transforms it, and who shows, stores or sends it.
+3. Count the places outside the files you expected to edit. One or more means `scope` is at least 1, and a
+   shared model or rule behind them means `dependency` is at least 1. Put the places in each axis's `basis`.
+4. Pass the result to `hr classify` with `--concept`, `--searched` and `--consumers`. The runtime records it
+   and prints it; a classification without it says that no search was recorded.
+
+This costs a few searches, so do it for L0 too. At L0 and L1 the result goes into the completion summary
+("Other places that use it"). At L2 and L3 it becomes the impact table: see
+[investigation](investigation.md#impact-other-places-that-use-it).
+
 ## Examples
 
 - "Center the login card." The probe shows only `LoginCard.css` is involved and no shared layout, so
