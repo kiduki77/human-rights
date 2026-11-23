@@ -15,6 +15,9 @@
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->
 
+<!-- hr:impact:start -->
+<!-- hr:impact:end -->
+
 ## Verification
 <!-- hr:results:start -->
 <!-- hr:results:end -->

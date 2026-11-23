@@ -17,7 +17,7 @@ GROUP_STRUCTURE = {
 STRUCTURE = {
     "overview.md": {"blocks": ["status", "decisions", "results"], "min_sections": 4},
     "requirements.md": {"blocks": [], "min_sections": 3},
-    "design.md": {"blocks": ["tasks"], "min_sections": 3},
+    "design.md": {"blocks": ["tasks", "impact"], "min_sections": 3},
     "verification.md": {"blocks": ["results", "steps"], "min_sections": 2},
 }
 MERMAID_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.S)
@@ -208,6 +208,32 @@ def _cell(text: Any) -> str:
     return str(text if text is not None else "-").replace("|", "\\|").replace("\n", " ")
 
 
+def impact_block(feature: Feature) -> str:
+    lang = lang_of(feature.ws)
+    imp = feature.requirements().get("impact")
+    if not isinstance(imp, dict):
+        return t(lang, "no_impact")
+    terms = ", ".join(f"`{_cell(s)}`" for s in imp.get("searched") or []) or "-"
+    lines = [f"**{t(lang, 'impact_concept')}:** {_cell(imp.get('concept'))}  ", f"**{t(lang, 'impact_searched')}:** {terms}", ""]
+    rows = [c for c in imp.get("consumers") or [] if isinstance(c, dict)]
+    if rows:
+        head = [t(lang, k) for k in ("impact_where", "impact_uses", "impact_relation", "impact_covered", "impact_evidence")]
+        lines += ["| " + " | ".join(head) + " |", "|---|---|---|---|---|"]
+        for c in rows:
+            covered = ", ".join(c.get("tasks") or c.get("tests") or []) or c.get("reason") or "-"
+            lines.append(f"| {_cell(c.get('where'))} | {_cell(c.get('uses'))} | "
+                         f"{value(lang, 'relation', c.get('relation', '-'))} | {_cell(covered)} | {_cell(c.get('evidence'))} |")
+    else:
+        lines.append(t(lang, "impact_none"))
+    again = feature.state().get("impact_recheck")
+    if again:
+        current = again.get("code_tree") == fingerprint(feature.ws.root).get("code_tree")
+        lines += ["", t(lang, "impact_rechecked" if current else "impact_recheck_stale",
+                        sha=str(again.get("commit_sha") or "-")[:10],
+                        terms=", ".join(f"`{_cell(s)}`" for s in again.get("searched") or []))]
+    return "\n".join(lines)
+
+
 def _duration(lang: str, seconds: Any) -> str:
     try:
         s = float(seconds)
@@ -316,11 +342,11 @@ def _decision_tables(lang: str, decisions: List[Dict[str, Any]], assumptions: Li
 def render(feature: Feature) -> List[str]:
     updated = []
     blocks = {
-        "overview.md": {"status": status_block, "tasks": tasks_block, "results": results_block,
+        "overview.md": {"status": status_block, "tasks": tasks_block, "impact": impact_block, "results": results_block,
                         "decisions": decisions_block, "features": features_block, "shared": shared_block,
                         "excluded": excluded_block, "steps": steps_block},
         "verification.md": {"results": results_block, "status": status_block, "steps": steps_block},
-        "design.md": {"tasks": tasks_block},
+        "design.md": {"tasks": tasks_block, "impact": impact_block},
     }
     for fname, mapping in blocks.items():
         path = feature.dir / fname

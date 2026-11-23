@@ -132,6 +132,19 @@ def _floor_problems(feature: Feature, st: Dict[str, Any], target: str) -> List[s
             f"`hr classify --axes ... --paths \"{paths}\"` so the floor applies"]
 
 
+def _recheck_problems(feature: Feature, st: Dict[str, Any]) -> List[str]:
+    from runtime.common import fingerprint
+
+    again = st.get("impact_recheck")
+    fp = fingerprint(feature.ws.root)
+    if again and (not fp.get("git") or again.get("code_tree") == fp.get("code_tree")):
+        return []
+    why = "the code changed after the last one" if again else "none is recorded"
+    return [f"[impact] search again for other places that use what this change touches, in the code as it is now "
+            f"({why}). Record it with `hr impact --recheck --searched <names>`. A place that is not in the impact "
+            "table goes into requirements.json with a task or a test"]
+
+
 def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
     from runtime.approvals.gates import design_status, final_status
     from runtime import groups
@@ -228,6 +241,8 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
         if target == "ready_to_merge" and st["required_gates"].get("final"):
             problems.append("final approval is required - go to awaiting_final_approval")
         problems += [f"[integration] {p}" for p in tests_gate(feature, st, strict=mode not in LENIENT_MODES)]
+        if mode in ("L2", "L3"):
+            problems += _recheck_problems(feature, st)
         crit = [f["id"] for f in failures.unresolved(feature)]
         if crit:
             problems.append("unresolved failures: " + ", ".join(crit))

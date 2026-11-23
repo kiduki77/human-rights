@@ -189,6 +189,72 @@
           "text"
         ]
       }
+    },
+    "impact": {
+      "type": "object",
+      "description": "other places that use what this change touches; required for L2 and L3",
+      "properties": {
+        "concept": {
+          "type": "string"
+        },
+        "searched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "consumers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "where": {
+                "type": "string"
+              },
+              "uses": {
+                "type": "string"
+              },
+              "relation": {
+                "enum": [
+                  "change",
+                  "check",
+                  "unrelated"
+                ]
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tests": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reason": {
+                "type": "string"
+              },
+              "evidence": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "where",
+              "relation",
+              "evidence"
+            ]
+          }
+        }
+      },
+      "required": [
+        "concept",
+        "searched"
+      ]
     }
   },
   "additionalProperties": true,
