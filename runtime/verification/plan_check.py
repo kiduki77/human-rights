@@ -6,6 +6,7 @@ TASK_STATUSES = ("planned", "in_progress", "implemented", "verified", "rework_re
 TEST_TYPES = ("unit", "component", "contract", "integration", "e2e", "regression", "security", "safety", "performance",
               "manual", "static")
 REGRESSION_SCOPES = ("targeted", "full")
+RELATIONS = ("change", "check", "unrelated")
 
 
 def _find_cycle(tasks: Dict[str, Dict[str, Any]]) -> List[str]:
@@ -82,6 +83,8 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
     t_hard, t_warn = test_problems(tests, tasks, strict)
     hard += t_hard
     warn += t_warn
+    if strict:
+        hard += impact_problems(req, tasks, tests)
 
     req_ids = {r.get("id") for r in reqs}
     for tid, t in tasks.items():
@@ -174,6 +177,45 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
                 warn.append(f"{a}/{b}: change the same paths without a dependency ({', '.join(sorted(shared))}) - do not run in parallel")
 
     return {"ok": not hard, "hard_fail": hard, "warnings": warn, "coverage": coverage}
+
+
+def impact_problems(req: Dict[str, Any], tasks: Dict[str, Dict[str, Any]], tests: Dict[str, Dict[str, Any]]) -> List[str]:
+    imp = req.get("impact")
+    if not isinstance(imp, dict):
+        return ["requirements.json needs `impact`: the thing this change touches (`concept`), what you searched for "
+                "(`searched`), and every other place that shows, computes, stores or sends it (`consumers`)"]
+    hard: List[str] = []
+    if not str(imp.get("concept") or "").strip():
+        hard.append("impact: name the `concept` this change touches (what changes for the user, not the file)")
+    if not [s for s in imp.get("searched") or [] if str(s).strip()]:
+        hard.append("impact: list what you `searched` for, including the other names the same thing goes by")
+    for i, c in enumerate(imp.get("consumers") or [], 1):
+        if not isinstance(c, dict):
+            hard.append(f"impact: consumer {i} must be an object")
+            continue
+        cid = c.get("id") or f"consumer {i}"
+        relation = c.get("relation")
+        if not str(c.get("where") or "").strip():
+            hard.append(f"impact {cid}: say `where` it is (a path or a component)")
+        if not str(c.get("evidence") or "").strip():
+            hard.append(f"impact {cid}: no `evidence` (path:lines, a symbol, or command output)")
+        if relation not in RELATIONS:
+            hard.append(f"impact {cid}: `relation` must be one of {', '.join(RELATIONS)}")
+        elif relation == "change":
+            ids = c.get("tasks") or []
+            if not ids:
+                hard.append(f"impact {cid}: it changes, so name the task that changes it (`tasks`)")
+            hard += [f"impact {cid}: references unknown task {x}" for x in ids if x not in tasks]
+        elif relation == "check":
+            ids = c.get("tests") or []
+            real = [x for x in ids if x in tests and tests[x].get("type") != "static"]
+            hard += [f"impact {cid}: references unknown test {x}" for x in ids if x not in tests]
+            if not real:
+                hard.append(f"impact {cid}: it is not changed but must still work, so name a test that would show "
+                            "it broke (`tests`; a static check does not count)")
+        elif not str(c.get("reason") or "").strip():
+            hard.append(f"impact {cid}: say why it is not affected (`reason`)")
+    return hard
 
 
 def test_problems(tests: Dict[str, Dict[str, Any]], tasks: Dict[str, Dict[str, Any]], strict: bool):

@@ -165,8 +165,11 @@ def cmd_classify(ws: Workspace, args) -> int:
         raise GateError(tampered)
     hits = floor.hits(floor.load(ws), floor.touched(ws, st, declared))
     result = route(_read_json_arg(args.axes), flags, ws.config(), hits)
+    old_probe = (st.get("routing") or {}).get("probe")
     notes = apply_route(st, result, now())
     st["routing"]["declared_paths"] = declared
+    probe = _probe(args, old_probe)
+    st["routing"]["probe"] = probe
     st["routing"]["floor_seal"] = (floor.read_seal(ws) or {}).get("rules_sha256")
     st["size"] = _size_record(args.size, args.size_reason)
     f.save_state(st)
@@ -176,6 +179,13 @@ def cmd_classify(ws: Workspace, args) -> int:
     print(f"mode: {st['mode']}  |  required gates: {gates}")
     for r in result["reasons"] + notes:
         print(f"  - {r}")
+    if probe:
+        others = probe["consumers"]
+        print(f"  - other places that use {probe['concept'] or 'what this changes'}: "
+              + (", ".join(others) if others else "none found") + f" (searched: {', '.join(probe['searched'])})")
+    else:
+        print("  - no search for other places that use what this changes was recorded (`--concept`, `--searched`, "
+              "`--consumers`)")
     _print_size(st)
     return 0
 
@@ -844,6 +854,42 @@ def cmd_unblock(ws: Workspace, args) -> int:
     return 0
 
 
+def _csv(text: Optional[str]) -> List[str]:
+    return [x.strip() for x in (text or "").split(",") if x.strip()]
+
+
+def _probe(args, old: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if args.concept is None and args.searched is None and args.consumers is None:
+        return old
+    searched = _csv(args.searched)
+    if not searched:
+        raise HRError("--searched is required with --concept or --consumers: the names you looked for")
+    return {"concept": (args.concept or "").strip(), "searched": searched, "consumers": _csv(args.consumers)}
+
+
+def cmd_impact(ws: Workspace, args) -> int:
+    from runtime import docs
+
+    f = _feature(ws, args)
+    st = f.state()
+    if not args.recheck:
+        print(docs.impact_block(f))
+        return 0
+    terms = _csv(args.searched)
+    if not terms:
+        raise HRError("--recheck needs --searched: the names you looked for in the code as it is now")
+    fp = fingerprint(ws.root)
+    if fp.get("dirty") and st.get("mode") in ("L2", "L3"):
+        raise GateError("commit first: the second search is recorded for one version of the code")
+    st["impact_recheck"] = {"at": now(), "commit_sha": fp.get("commit_sha"), "code_tree": fp.get("code_tree"),
+                            "searched": terms, "note": args.note or ""}
+    f.save_state(st)
+    f.emit("impact_rechecked", commit_sha=fp.get("commit_sha"), searched=terms, note=args.note or "")
+    print(f"second search recorded at {str(fp.get('commit_sha') or 'no commit')[:10]}: {', '.join(terms)}")
+    print("  a place that is not in the impact table goes into requirements.json with a task or a test (a plan change)")
+    return 0
+
+
 def cmd_scope_change(ws: Workspace, args) -> int:
     from runtime.state import machine
 
@@ -1339,6 +1385,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--paths", help="comma-separated files or globs this change is expected to touch (checked against "
                                     "the owner's floor; omitted keeps the paths from the last classification)")
     sp.add_argument("--note")
+    sp.add_argument("--concept", help="the thing this change touches, as the user sees it")
+    sp.add_argument("--searched", help="comma-separated names you searched for to find other places that use it")
+    sp.add_argument("--consumers", help="comma-separated other places that show, compute, store or send it")
     sp.add_argument("--size", choices=("single", "compound"), help="one feature, or several separately verifiable results")
     sp.add_argument("--size-reason")
     sp = add("size", cmd_size, "record the size decision on its own (single feature, or compound -> split)")
@@ -1415,6 +1464,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("unblock", cmd_unblock, "[human decision: --by, or --quote from chat] release an escalation")
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
+    sp.add_argument("--note")
+    sp = add("impact", cmd_impact, "other places that use what this change touches; --recheck records the search after the code is written")
+    sp.add_argument("--recheck", action="store_true")
+    sp.add_argument("--searched", help="comma-separated names searched for")
     sp.add_argument("--note")
     sp = add("scope-change", cmd_scope_change, "change outside the task boundary found -> scope change request")
     sp.add_argument("--task")

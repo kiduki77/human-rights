@@ -136,6 +136,12 @@ class L3Test(unittest.TestCase):
 
         r.hr("record-manual", "TEST-013", "passed", "--by", "bob", "--evidence", "https://example.com/rec.mp4")
         code, out = r.hr("transition", "awaiting_final_approval")
+        self.assertEqual(code, 3, "no second search for other users of what changed")
+        self.assertIn("[impact]", out)
+        self.assertNotIn("TEST-013", out)
+        code, out = r.hr("impact", "--recheck", "--searched", "target_system,session")
+        self.assertEqual(code, 0, out)
+        code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 0, out)
         code, out = r.hr("transition", "ready_to_merge")
         self.assertEqual(code, 3, "L3 must not reach merge without final approval")

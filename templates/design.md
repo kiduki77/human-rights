@@ -24,6 +24,10 @@ sequenceDiagram
 
 If there is only one real option, replace the table with one line: "No alternative: [reason]".
 
+## Other places that use it
+<!-- hr:impact:start -->
+<!-- hr:impact:end -->
+
 ## Tasks
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->

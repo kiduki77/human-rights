@@ -183,6 +183,7 @@ class FinalDrillTest(RedpillBase):
         r.hr("transition", "integrating")
         r.hr("verify", "--level", "all")
         r.hr("record-manual", "TEST-013", "passed", "--by", "bob")
+        r.hr("impact", "--recheck", "--searched", "target_system")
         code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 0, out)
         act = self.drill()["active"]

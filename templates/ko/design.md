@@ -24,6 +24,10 @@ sequenceDiagram
 
 실제 대안이 하나뿐이면 표 대신 한 줄로: "대안 없음: [이유]".
 
+## 이것을 쓰는 다른 곳
+<!-- hr:impact:start -->
+<!-- hr:impact:end -->
+
 ## 작업
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->

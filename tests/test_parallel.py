@@ -209,6 +209,7 @@ class ParallelFlowTest(unittest.TestCase):
         out = self.ok("verify", "--level", "all", "--parallel", "4")
         self.assertIn("[parallel x", out)
         r.hr("record-manual", "TEST-013", "passed", "--by", "bob", "--evidence", "https://example.com/rec")
+        self.ok("impact", "--recheck", "--searched", "target_system")
         self.ok("transition", "awaiting_final_approval")
         self.ok("approve", "final", "--by", "alice")
         st = r.state()

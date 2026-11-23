@@ -29,6 +29,10 @@ sequenceDiagram
 | **A (recommended)** registry + explicit target | link, command, ui | medium | good: one owner per concern | unit + SITL e2e | none |
 | B one GCS process per vehicle | packaging, ui | low in code, high in ops | poor: N windows, no shared view | hard | process manager |
 
+## Other places that use it
+<!-- hr:impact:start -->
+<!-- hr:impact:end -->
+
 ## Tasks
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->

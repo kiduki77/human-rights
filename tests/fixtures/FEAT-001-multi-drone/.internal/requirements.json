@@ -142,5 +142,53 @@
       "text": "Each vehicle has a unique system_id (duplicates are refused)",
       "risk": "low"
     }
-  ]
+  ],
+  "impact": {
+    "concept": "which vehicle a command is sent to",
+    "searched": [
+      "target_system",
+      "active_connection",
+      "send("
+    ],
+    "consumers": [
+      {
+        "id": "IMP-001",
+        "where": "src/command/router.py",
+        "uses": "picks the connection a command goes out on",
+        "relation": "change",
+        "tasks": [
+          "TASK-002"
+        ],
+        "evidence": "src/command/router.py:18-44"
+      },
+      {
+        "id": "IMP-002",
+        "where": "src/ui/vehicle_selector.py",
+        "uses": "shows which vehicle is selected",
+        "relation": "change",
+        "tasks": [
+          "TASK-004"
+        ],
+        "evidence": "src/ui/vehicle_selector.py:10-35"
+      },
+      {
+        "id": "IMP-003",
+        "where": "src/telemetry/log.py",
+        "uses": "writes the target of each command to the flight log",
+        "relation": "check",
+        "tests": [
+          "TEST-012"
+        ],
+        "evidence": "src/telemetry/log.py:12-30"
+      },
+      {
+        "id": "IMP-004",
+        "where": "src/params/editor.py",
+        "uses": "sends parameter writes",
+        "relation": "unrelated",
+        "reason": "out of scope: parameter writes stay on the single-vehicle path",
+        "evidence": "src/params/editor.py:51-60"
+      }
+    ]
+  }
 }

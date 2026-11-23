@@ -15,6 +15,9 @@
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->
 
+<!-- hr:impact:start -->
+<!-- hr:impact:end -->
+
 ## 검증
 <!-- hr:results:start -->
 <!-- hr:results:end -->
