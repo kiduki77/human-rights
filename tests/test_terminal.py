@@ -14,6 +14,7 @@ DECISIONS = (
     ("flag", "TASK-001", *BY),
     ("floor", "add", "src/auth/**", "L3", *BY),
     ("floor", "remove", "src/pay/**", *BY),
+    ("floor", "accept", *BY),
     ("redpill", "on"),
     ("redpill", "on", *BY),
     ("redpill", "off"),

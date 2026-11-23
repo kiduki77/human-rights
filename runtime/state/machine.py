@@ -116,6 +116,9 @@ def _floor_problems(feature: Feature, st: Dict[str, Any], target: str) -> List[s
     if target not in FLOOR_STATES:
         return []
     ws = feature.ws
+    tampered = floor.problem(ws, st)
+    if tampered:
+        return [tampered]
     declared = (st.get("routing") or {}).get("declared_paths") or []
     hits = floor.hits(floor.load(ws), floor.touched(ws, st, declared))
     top = floor_level(hits)

@@ -58,6 +58,14 @@ class Repo:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
 
+    def floor(self, text: str) -> None:
+        from runtime.routing import floor
+        from runtime.state.store import Workspace
+
+        self.write(".human-rights/floor.yaml", text)
+        ws = Workspace(self.root)
+        floor.seal(ws, floor.load(ws), {"by": "owner", "via": "cli"})
+
     def commit(self, msg: str) -> str:
         git(self.root, "add", "-A")
         git(self.root, "commit", "-q", "-m", msg, "--allow-empty")

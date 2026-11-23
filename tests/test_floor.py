@@ -88,7 +88,7 @@ class ClassifyFloorTest(unittest.TestCase):
     def setUp(self):
         self.r = Repo()
         self.r.hr("init")
-        self.r.write(".human-rights/floor.yaml", RULES)
+        self.r.floor(RULES)
         self.r.hr("new", "Tidy the login card")
 
     def tearDown(self):
@@ -130,7 +130,7 @@ class GuardTest(unittest.TestCase):
     def setUp(self):
         self.r = Repo()
         self.r.hr("init")
-        self.r.write(".human-rights/floor.yaml", RULES)
+        self.r.floor(RULES)
         self.r.hr("new", "Tidy the login card")
         self.r.hr("classify", "--axes", L0_AXES)
         self.r.hr("transition", "executing")
@@ -260,7 +260,7 @@ class FloorCommandTest(unittest.TestCase):
     def test_list_shows_the_rules_and_what_the_active_feature_touches(self):
         r = self.r
         self.assertIn("no floor", r.hr("floor")[1])
-        r.write(".human-rights/floor.yaml", RULES)
+        r.floor(RULES)
         r.hr("new", "Tidy")
         r.write("migrations/0001.sql", "select 1;\n")
         code, out = r.hr("floor")
