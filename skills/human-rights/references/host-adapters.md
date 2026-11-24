@@ -14,7 +14,8 @@ sub-agents, and how human decisions reach the runtime differ by host.
 - The human can still run any decision directly in their own terminal (`.human-rights/hr approve design --by alice`).
   The `!` prefix does not work for this: without `--quote` the runtime accepts a decision only at a terminal.
 - Questions: use `AskUserQuestion` when it fits (3-5 questions, each with a recommended option first).
-- Sub-agents: `hr-investigator` (read-only) and `hr-plan-reviewer` (independent review) through the Agent tool.
+- Sub-agents: `hr-investigator` (read-only), `hr-plan-reviewer` (independent review of the plan) and
+  `hr-code-reviewer` (independent review of the written code) through the Agent tool.
   Give each a self-contained brief: the goal, the feature directory path, and what is already ruled out.
 - Parallel batches: spawn one `hr-task-worker` per task **in a single message** (so they run concurrently),
   each with the `prompt` from `hr schedule --start --json` verbatim. Workers write only inside their

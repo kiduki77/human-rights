@@ -204,7 +204,7 @@ flowchart LR
 <tr>
 <td valign="top"><b>5 · 👤 Design approval</b><br>By a human, bound to the plan's hashes.</td>
 <td valign="top"><b>6 · Implement + verify</b><br>In DAG order, one verifiable commit per task, in parallel worktrees when the tasks are independent.</td>
-<td valign="top"><b>7 · Integration testing</b><br>Everything on one commit. Failures are classified and routed back, then the full plan re-runs.</td>
+<td valign="top"><b>7 · Integration testing</b><br>Everything on one commit. Failures are classified and routed back, then the full plan re-runs. Then an agent that did not write the code reads the diff for code nothing asked for.</td>
 <td valign="top"><b>8 · 👤 Final approval</b><br>By a human, bound to the verified commit. Then merging follows your repo's rules. Auto-merge is off.</td>
 </tr>
 </table>
@@ -523,8 +523,8 @@ human-rights/
 ├── skills/human-rights/  SKILL.md (routing + procedure) and references/ (loaded per stage)
 ├── skills/<command>/     /hrs:init, new, status, list, resume, review, approve, verify,
 │                         redpill, metrics, abort
-├── agents/               hr-investigator, hr-plan-reviewer, hr-task-worker, hr-tester,
-│                         hr-redpill-author
+├── agents/               hr-investigator, hr-plan-reviewer, hr-code-reviewer, hr-task-worker,
+│                         hr-tester, hr-redpill-author
 ├── hooks/                approval guard (PreToolUse), active-feature reminder (SessionStart),
 │                         chat decision capture (UserPromptSubmit)
 ├── runtime/              the hr CLI: routing/, state/, approvals/, verification/, scheduler/,
@@ -553,6 +553,7 @@ scenarios end to end against temporary git repositories:
 - a safety-ambiguous L3 request can't be implemented;
 - plan gaps block approval, and design edits invalidate it;
 - code changes invalidate final approval, while docs-only commits don't;
+- final approval waits for a review of the written code, and for a decision on each of its findings;
 - repeated failures escalate, and the agent can't approve or release an escalation;
 - resume detects unrecorded commits, and tampering is detected;
 - independent tasks run in real worktrees, while conflicting ones are serialized;

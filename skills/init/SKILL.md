@@ -11,11 +11,11 @@ Set up this repository. Arguments given: `$ARGUMENTS`.
 1. If this is not a git repository, say that only L0/L1 will be possible and offer `git init`. Don't run it without a yes.
 2. Settle four choices. Take each one from the arguments when given. Otherwise ask them in one `AskUserQuestion` call, written in the user's language:
    - **Report language** for everything humans read under `.human-rights/`: `ko` or `en`. Recommend the language the user is writing in.
-   - **Sub-agent models**: which model and effort the investigator, the plan reviewer, the task worker, the tester, and the red pill author run with. The main conversation stays on the session model. Show each option with its values:
-     - `balanced` (recommended): investigator sonnet/medium, plan reviewer opus/high, the other three sonnet/high
-     - `quality`: opus for all five (investigator medium, the others high)
-     - `economy`: investigator haiku, plan reviewer sonnet/high, the other three sonnet/medium
-     - `inherit`: all five use the session model and effort
+   - **Sub-agent models**: which model and effort the investigator, the plan reviewer, the code reviewer, the task worker, the tester, and the red pill author run with. The main conversation stays on the session model. Show each option with its values:
+     - `balanced` (recommended): investigator sonnet/medium, plan reviewer and code reviewer opus/high, the other three sonnet/high
+     - `quality`: opus for all six (investigator medium, the others high)
+     - `economy`: investigator haiku, plan reviewer and code reviewer sonnet/high, the other three sonnet/medium
+     - `inherit`: all six use the session model and effort
    - **Red pill drills**: explain in one sentence that an approval request sometimes contains one planted item that must not be approved, written for the feature at hand, so the human practises finding flaws. Options:
      - `Off`
      - `Adaptive` (recommended): starts easy, moves up after 2 clean catches in a row, down after 2 misses in a row

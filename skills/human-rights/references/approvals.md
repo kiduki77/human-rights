@@ -95,26 +95,31 @@ get re-approval. Never hide decisions outside the plan files to avoid invalidati
 
 ## Requesting final approval (`awaiting_final_approval`)
 
-Precondition: all code is committed, every required test passed **on the current commit**, and no
-failures are unresolved (see [integration.md](integration.md)).
+Precondition: all code is committed, every required test passed **on the current commit**, no failures
+are unresolved, and at L2 and L3 the written code was reviewed on that commit (see
+[integration.md](integration.md)).
 
 1. `hr render`, update `overview.md` into the final-report shape (structure of `review-report.md`),
    `hr doc-check`.
 2. `hr transition awaiting_final_approval`.
 3. Show: the one-line conclusion; what actually changed; the requirement → test → result → evidence table
-   (the rendered block); deviations from the plan; remaining risks and anything not run; and the verified
-   commit SHA. Commands:
+   (the rendered block); the review findings table from `verification.md`, pasted as rendered, with a
+   question for each row that has no outcome yet (remove it, or keep it and why); deviations from the plan;
+   remaining risks and anything not run; and the verified commit SHA. Commands:
 
 ```
 Final approval needed. Verified commit: 3f2a91c0de (8/8 required tests passing)
 
   approve:         say so in chat, with any residual risk you accept
   point at items:  tell me which row looks wrong
+  review findings: for each one, say "remove it" or "keep it" with the reason
   request changes: tell me what to change
 ```
 
 4. On a change request: `hr reject final --reason "..." --quote "<words>"`, which moves the feature to
    `rework_required`.
+   On "keep it" for a review finding: `hr finding accept FND-002 --reason "..." --quote "<words>"`. On
+   "remove it": that is a change request. The runtime refuses the approval while a finding has no outcome.
    On approval it moves to `ready_to_merge`.
 
 Final approval is bound to the code tree fingerprint. If the code changes after approval, the runtime

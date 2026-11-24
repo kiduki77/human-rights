@@ -185,7 +185,7 @@ lines.
 | Quality gate | `planning` | `hr plan-check` with zero hard fails, plus an independent review | [planning](references/planning.md) |
 | Design approval | `awaiting_design_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Implement & verify tasks | `executing` / `verifying_tasks` | Tasks in DAG order: commit, `hr verify --task`, `hr task ... verified` | [execution](references/execution.md) |
-| Integration testing | `integrating` | Scripts, then agent tests (`hr-tester`), then human tests; every result valid for the final commit; failure loop; then the second search for other users, `hr impact --recheck` | [integration](references/integration.md) |
+| Integration testing | `integrating` | Scripts, then agent tests (`hr-tester`), then human tests; every result valid for the final commit; failure loop; then the second search for other users, `hr impact --recheck`; then the review of the written code, `hr review-brief` and `hr record-review` (L2/L3) | [integration](references/integration.md) |
 | Final approval | `awaiting_final_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
 | Merge | `ready_to_merge` | `hr merge-check`, a human merges, then `hr transition completed` | [github](references/github.md) |
 
@@ -233,6 +233,10 @@ conversation is always the single writer of workflow state.
 - `hr-investigator`: read-only code investigation, for evidence gathering in L2/L3 `investigating`.
 - `hr-plan-reviewer`: independent review of the plan and approval documents, once after `plan-check`
   passes and before you request approval.
+- `hr-code-reviewer`: at L2 and L3, reviews the written code once the tests pass and before you request
+  final approval. It gets the work order from `hr review-brief` and nothing from you about what was built.
+  It reports code nothing asks for, repeated code and unused code. It never edits code. You never accept
+  a finding yourself: the code goes, or the human keeps it with a reason.
 - `hr-task-worker`: implements one task inside its own git worktree during a parallel batch.
 - `hr-redpill-author`: when red pill mode is on, writes drill candidates for the feature before each
   approval request (`hr redpill brief --gate <gate> --json`). It submits them to the runtime itself. You

@@ -32,15 +32,18 @@ on auto-merge, widens parallelism, or turns red pill mode off. To change policy,
 | `docs.allowed_phrases` | `[]` | Hits to accept because they are real terms here (a product name, a field label) |
 
 | `agents.preset` | `balanced` | Which preset the values below came from (`hr init --agents <preset>`): `balanced`, `quality`, `economy`, `inherit` |
-| `agents.<role>_model` | see below | `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or `inherit` (the session's model). Roles: `investigator`, `plan_reviewer`, `task_worker`, `tester`, `redpill_author` |
+| `agents.<role>_model` | see below | `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or `inherit` (the session's model). Roles: `investigator`, `plan_reviewer`, `code_reviewer`, `task_worker`, `tester`, `redpill_author` |
 | `agents.<role>_effort` | see below | `low`, `medium`, `high`, `xhigh`, `max`, or empty for the model's default |
 
-| Preset | `hr-investigator` | `hr-plan-reviewer` | `hr-task-worker` | `hr-tester` | `hr-redpill-author` |
-|---|---|---|---|---|---|
-| `balanced` (default) | sonnet / medium | opus / high | sonnet / high | sonnet / high | sonnet / high |
-| `quality` | opus / medium | opus / high | opus / high | opus / high | opus / high |
-| `economy` | haiku / default | sonnet / high | sonnet / medium | sonnet / medium | sonnet / medium |
-| `inherit` | session model | session model | session model | session model | session model |
+| Preset | `hr-investigator` | `hr-plan-reviewer` | `hr-code-reviewer` | `hr-task-worker` | `hr-tester` | `hr-redpill-author` |
+|---|---|---|---|---|---|---|
+| `balanced` (default) | sonnet / medium | opus / high | opus / high | sonnet / high | sonnet / high | sonnet / high |
+| `quality` | opus / medium | opus / high | opus / high | opus / high | opus / high | opus / high |
+| `economy` | haiku / default | sonnet / high | sonnet / high | sonnet / medium | sonnet / medium | sonnet / medium |
+| `inherit` | session model | session model | session model | session model | session model | session model |
+
+A `config.yaml` written before `code_reviewer` existed has no value for it and gets `opus` / `high`. Run
+`hr init --agents <preset>` again, or add `code_reviewer_model` and `code_reviewer_effort`, to change it.
 
 The main conversation (the planner and coordinator) always runs on the session's own model; pick it with
 `/model`. `hr agents` shows what each sub-agent will run with.

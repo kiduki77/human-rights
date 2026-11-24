@@ -25,7 +25,28 @@
    `requirements.json` with a task or a test. That is a plan change, so the design approval is invalidated
    and the human sees the new row before it is approved again. Do not record a search that found something
    as if it had found nothing.
-6. `hr render` refreshes the result tables in `verification.md` and `overview.md`, and the impact table.
+6. **Have the written code reviewed**, at L2 and L3, by an agent that did not write it. The tests show
+   that the code works. They do not show that anyone asked for it. `hr review-brief --json`, spawn
+   `hr-code-reviewer` with the `prompt` verbatim and the `agent` fields as the Agent tool's `model` and
+   `effort`, then `hr record-review`. Add nothing to the prompt: no summary of the work, no explanation of a
+   choice. The reviewer gets the requirements, the approved design and the diff, and judges the code by the
+   request. It reports three kinds of finding, each with a file and lines: a change that no requirement,
+   task or recorded failure explains, code that repeats something the repository has, and code that nothing
+   uses. The runtime refuses a report that does not list every changed file as read, and a finding that
+   points outside the changed files. Never write or edit the report yourself. Without sub-agents, do the
+   review in a fresh pass from the same work order.
+   Each finding (`FND-NNN`) needs one of two outcomes before final approval:
+   - **Remove the code.** That is a change like any other: commit it, and the results that cover it become
+     `stale` and run again. Then run the review again. A review counts only for the commit it read, and the
+     next one closes the findings whose code is gone.
+   - **The human keeps it.** Show the finding and ask. Record the answer:
+     `hr finding accept FND-002 --reason "<why it stays>" --quote "<their words>"`. You cannot accept a
+     finding yourself, and you do not argue a finding away in the documents.
+   Run the review last, after the tests pass and the second search is recorded, because every later commit
+   makes it stale. At L2 and L3 the runtime refuses `awaiting_final_approval` without a review of the
+   current code, and refuses the final approval while a finding has no outcome.
+7. `hr render` refreshes the result tables in `verification.md` and `overview.md`, the impact table, and
+   the review findings in `verification.md`.
 
 ## Handling failures
 
@@ -64,6 +85,8 @@ observed and expected results, evidence, and retry count. You investigate the ro
       carried over because nothing they cover changed)
 - [ ] Every agent test has per-step evidence, and every human test was recorded after the machine tests
 - [ ] The last verification and the approved code version match (the runtime compares code tree fingerprints)
+- [ ] At L2 and L3, the written code was reviewed on the current commit, and every finding was removed or
+      kept by the human with a reason
 - [ ] No unresolved critical defects; remaining issues are disclosed with agreed handling (`--risks`)
 - [ ] Required human approvals are done and GitHub protection rules are satisfied (`hr merge-check`)
 - [ ] The human-facing final report (`overview.md`) exists and `hr doc-check` passes
