@@ -32,6 +32,8 @@ It picks how much process each request gets, and a small runtime enforces the hu
 <a href="#reference">Reference</a>
 </p>
 
+<img alt="Red pill mode refusing an unread approval, then accepting it once the planted row is named" src="assets/redpill-demo.gif" width="720">
+
 </div>
 
 ```text
@@ -318,10 +320,6 @@ denies those commands. If you prefer, you can still run them yourself in your ow
 <div align="center">
 
 <i>Blue pill: approve what you're shown. Red pill: see what you're actually approving.</i>
-
-<br><br>
-
-<img alt="Red pill mode refusing an unread approval, then accepting it once the planted row is named" src="assets/redpill-demo.gif" width="720">
 
 </div>
 
