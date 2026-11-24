@@ -6,6 +6,7 @@ import unittest
 
 from helpers import ONE
 from helpers import L3_AXES, PLUGIN, Repo, install_example_plan
+from helpers import code_review
 from runtime import docs, redpill
 from runtime.state.store import Workspace
 
@@ -184,6 +185,7 @@ class FinalDrillTest(RedpillBase):
         r.hr("verify", "--level", "all")
         r.hr("record-manual", "TEST-013", "passed", "--by", "bob")
         r.hr("impact", "--recheck", "--searched", "target_system")
+        code_review(r)
         code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 0, out)
         act = self.drill()["active"]

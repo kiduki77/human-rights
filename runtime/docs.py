@@ -18,7 +18,7 @@ STRUCTURE = {
     "overview.md": {"blocks": ["status", "decisions", "results"], "min_sections": 4},
     "requirements.md": {"blocks": [], "min_sections": 3},
     "design.md": {"blocks": ["tasks", "impact"], "min_sections": 3},
-    "verification.md": {"blocks": ["results", "steps"], "min_sections": 2},
+    "verification.md": {"blocks": ["results", "steps", "review"], "min_sections": 2},
 }
 MERMAID_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.S)
 MERMAID_KINDS = ("flowchart", "graph", "sequenceDiagram", "stateDiagram", "stateDiagram-v2", "classDiagram",
@@ -234,6 +234,37 @@ def impact_block(feature: Feature) -> str:
     return "\n".join(lines)
 
 
+def review_block(feature: Feature) -> str:
+    from runtime import review
+
+    lang = lang_of(feature.ws)
+    data = review.load(feature)
+    if not data["reviews"]:
+        return t(lang, "no_review")
+    last = data["reviews"][-1]
+    current = last.get("code_tree") == fingerprint(feature.ws.root).get("code_tree")
+    lines = [t(lang, "review_done" if current else "review_stale", id=last["id"], who=_cell(last.get("by")),
+               sha=str(last.get("commit_sha") or "-")[:10], files=len(last.get("files_read") or []),
+               n=len(last.get("findings") or []))]
+    if not data["findings"]:
+        return "\n".join(lines + ([t(lang, "review_none")] if current else []))
+    head = [t(lang, k) for k in ("finding", "impact_where", "review_what", "review_disposition")]
+    lines += ["", "| " + " | ".join(head) + " |", "|---|---|---|---|"]
+    for x in data["findings"]:
+        what = f"**{value(lang, 'finding_kind', x['kind'])}.** {_cell(x.get('what'))}"
+        if x.get("existing"):
+            what += " (" + t(lang, "review_existing", place=_cell(x["existing"])) + ")"
+        d = x.get("disposition") or {}
+        if not d:
+            decided = t(lang, "disposition_none")
+        elif d["kind"] == "accepted":
+            decided = t(lang, "disposition_accepted", who=_cell(d.get("by")), reason=_cell(d.get("reason")))
+        else:
+            decided = t(lang, "disposition_" + d["kind"], review=d.get("review") or "-")
+        lines.append(f"| {x['id']} | `{_cell(review._place(x))}` | {what} | {decided} |")
+    return "\n".join(lines)
+
+
 def _duration(lang: str, seconds: Any) -> str:
     try:
         s = float(seconds)
@@ -344,8 +375,9 @@ def render(feature: Feature) -> List[str]:
     blocks = {
         "overview.md": {"status": status_block, "tasks": tasks_block, "impact": impact_block, "results": results_block,
                         "decisions": decisions_block, "features": features_block, "shared": shared_block,
-                        "excluded": excluded_block, "steps": steps_block},
-        "verification.md": {"results": results_block, "status": status_block, "steps": steps_block},
+                        "excluded": excluded_block, "steps": steps_block, "review": review_block},
+        "verification.md": {"results": results_block, "status": status_block, "steps": steps_block,
+                            "review": review_block},
         "design.md": {"tasks": tasks_block, "impact": impact_block},
     }
     for fname, mapping in blocks.items():

@@ -43,6 +43,7 @@ INTERNAL_FILES = {
     "test_plan": "test-plan.json",
     "test_results": "test-results.json",
     "failures": "failures.json",
+    "findings": "findings.json",
     "split": "split.json",
 }
 

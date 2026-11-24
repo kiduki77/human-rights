@@ -8,6 +8,7 @@ from pathlib import Path
 
 from helpers import ONE
 from helpers import EXAMPLE, L3_AXES, PLUGIN, PY, Repo, git, install_example_plan
+from helpers import code_review
 from runtime.scheduler.dag import plan_batch, task_conflicts, test_batches
 
 FILES = {
@@ -210,6 +211,7 @@ class ParallelFlowTest(unittest.TestCase):
         self.assertIn("[parallel x", out)
         r.hr("record-manual", "TEST-013", "passed", "--by", "bob", "--evidence", "https://example.com/rec")
         self.ok("impact", "--recheck", "--searched", "target_system")
+        self.assertEqual(code_review(r)[0], 0)
         self.ok("transition", "awaiting_final_approval")
         self.ok("approve", "final", "--by", "alice")
         st = r.state()

@@ -10,6 +10,10 @@
 <!-- hr:steps:start -->
 <!-- hr:steps:end -->
 
+## Review of the written code
+<!-- hr:review:start -->
+<!-- hr:review:end -->
+
 ## Residual risk
 Real radio links behave differently from SITL; a field check is outside this feature and is noted for the release checklist.
 
