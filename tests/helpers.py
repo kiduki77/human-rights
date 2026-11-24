@@ -128,4 +128,14 @@ def install_example_plan(repo: Repo, fail_tests=()) -> Path:
             shutil.copy(p, fdir / sub / p.name)
     return fdir
 
+def code_review(repo: Repo, findings=(), skip=()):
+    code, out = repo.hr("review-brief", "--json")
+    assert code == 0, out
+    brief = json.loads(out)
+    read = [f["path"] for f in brief["files"] if f["status"] != "D" and f["path"] not in skip]
+    report = {"by": "hr-code-reviewer", "files_read": read, "findings": list(findings)}
+    (repo.root / brief["report"]).write_text(json.dumps(report), encoding="utf-8")
+    return repo.hr("record-review")
+
+
 ONE = ("--size", "single", "--size-reason", "one change, verified as a whole")

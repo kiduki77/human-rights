@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://human-rights.local/schemas/findings.schema.json",
+  "title": "findings",
+  "type": "object",
+  "properties": {
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^REV-\\d+"
+          },
+          "at": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "base_sha": {
+            "type": "string"
+          },
+          "commit_sha": {
+            "type": "string"
+          },
+          "code_tree": {
+            "type": "string"
+          },
+          "files_read": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "commit_sha",
+          "code_tree",
+          "files_read",
+          "findings"
+        ]
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FND-\\d+"
+          },
+          "source": {
+            "type": "string"
+          },
+          "review": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "unexplained",
+              "duplicate",
+              "unused"
+            ]
+          },
+          "file": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "what": {
+            "type": "string"
+          },
+          "existing": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "removed",
+                  "reported_again",
+                  "accepted"
+                ]
+              },
+              "at": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string"
+              },
+              "review": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "at",
+              "by"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "kind",
+          "file",
+          "lines",
+          "what",
+          "disposition"
+        ]
+      }
+    }
+  },
+  "required": [
+    "reviews",
+    "findings"
+  ]
+}

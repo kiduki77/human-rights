@@ -14,6 +14,12 @@ Each step passes only if the stated result is observed. An agent attaches eviden
 <!-- hr:steps:start -->
 <!-- hr:steps:end -->
 
+## Review of the written code
+Before final approval, an agent that did not write the code reads the diff against the requirements and the design. It reports changes nothing asks for, repeated code and unused code.
+
+<!-- hr:review:start -->
+<!-- hr:review:end -->
+
 ## Why this regression scope is enough
 [FILL: what this change can break, which existing tests cover that, and what is deliberately not re-run]
 

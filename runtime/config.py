@@ -52,6 +52,8 @@ agents:
   investigator_effort: medium
   plan_reviewer_model: opus
   plan_reviewer_effort: high
+  code_reviewer_model: opus
+  code_reviewer_effort: high
   task_worker_model: sonnet
   task_worker_effort: high
   tester_model: sonnet
@@ -63,21 +65,24 @@ agents:
 AGENT_ROLES = {
     "investigator": "hr-investigator",
     "plan_reviewer": "hr-plan-reviewer",
+    "code_reviewer": "hr-code-reviewer",
     "task_worker": "hr-task-worker",
     "tester": "hr-tester",
     "redpill_author": "hr-redpill-author",
 }
 AGENT_PRESETS = {
     "balanced": {"investigator": ("sonnet", "medium"), "plan_reviewer": ("opus", "high"),
-                 "task_worker": ("sonnet", "high"), "tester": ("sonnet", "high"),
-                 "redpill_author": ("sonnet", "high")},
+                 "code_reviewer": ("opus", "high"), "task_worker": ("sonnet", "high"),
+                 "tester": ("sonnet", "high"), "redpill_author": ("sonnet", "high")},
     "quality": {"investigator": ("opus", "medium"), "plan_reviewer": ("opus", "high"),
-                "task_worker": ("opus", "high"), "tester": ("opus", "high"), "redpill_author": ("opus", "high")},
+                "code_reviewer": ("opus", "high"), "task_worker": ("opus", "high"),
+                "tester": ("opus", "high"), "redpill_author": ("opus", "high")},
     "economy": {"investigator": ("haiku", ""), "plan_reviewer": ("sonnet", "high"),
-                "task_worker": ("sonnet", "medium"), "tester": ("sonnet", "medium"),
-                "redpill_author": ("sonnet", "medium")},
+                "code_reviewer": ("sonnet", "high"), "task_worker": ("sonnet", "medium"),
+                "tester": ("sonnet", "medium"), "redpill_author": ("sonnet", "medium")},
     "inherit": {"investigator": ("inherit", ""), "plan_reviewer": ("inherit", ""),
-                "task_worker": ("inherit", ""), "tester": ("inherit", ""), "redpill_author": ("inherit", "")},
+                "code_reviewer": ("inherit", ""), "task_worker": ("inherit", ""),
+                "tester": ("inherit", ""), "redpill_author": ("inherit", "")},
 }
 MODEL_ALIASES = ("sonnet", "opus", "haiku", "fable", "inherit")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")

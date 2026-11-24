@@ -68,8 +68,8 @@ class AgentSettingsTest(unittest.TestCase):
             r.hr("init", "--agents", "inherit")
             s = json.loads(r.hr("agents", "--json")[1])
             self.assertEqual({k: v["agent_call"] for k, v in s.items()},
-                             {"investigator": {}, "plan_reviewer": {}, "task_worker": {}, "tester": {},
-                              "redpill_author": {}})
+                             {"investigator": {}, "plan_reviewer": {}, "code_reviewer": {}, "task_worker": {},
+                              "tester": {}, "redpill_author": {}})
             r.hr("init", "--agents", "economy")
             s = json.loads(r.hr("agents", "--json")[1])
             self.assertEqual(s["investigator"]["agent_call"], {"model": "haiku"})

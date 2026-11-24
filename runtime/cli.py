@@ -890,6 +890,74 @@ def cmd_impact(ws: Workspace, args) -> int:
     return 0
 
 
+def cmd_review_brief(ws: Workspace, args) -> int:
+    from runtime import review
+    from runtime.config import agent_settings
+
+    f = _feature(ws, args)
+    out = review.brief(f)
+    out["agent"] = {"subagent_type": review.REVIEWER, **agent_settings(ws.config())["code_reviewer"]["agent_call"]}
+    if args.json:
+        _print_json(out)
+    else:
+        print(out["prompt"])
+    return 0
+
+
+def cmd_record_review(ws: Workspace, args) -> int:
+    from runtime import review
+
+    f = _feature(ws, args)
+    path = Path(args.report) if args.report else review.report_path(f)
+    if not path.is_absolute():
+        path = ws.root / path
+    if not path.is_file():
+        raise HRError(f"no report at {path}")
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HRError(f"report is not valid JSON: {exc}")
+    res = review.record(f, report)
+    rev = res["review"]
+    print(f"{rev['id']} recorded at {rev['commit_sha'][:10]}: {len(rev['files_read'])} changed file(s) read, "
+          f"{len(res['new'])} finding(s)")
+    for x in res["new"]:
+        print(f"  {x['id']} [{x['kind']}] {review._place(x)}: {x['what']}")
+    if res["closed"]:
+        print("  closed, because their code changed and was reviewed again: " + ", ".join(res["closed"]))
+    waiting = res["open"] + [x["id"] for x in res["new"]]
+    if waiting:
+        print("  no disposition yet: " + ", ".join(waiting) + ". Remove the code and run the review again, or the "
+              "human accepts it with a reason (`hr finding accept <id> --reason ... --quote`)")
+    return 0
+
+
+def cmd_finding(ws: Workspace, args) -> int:
+    from runtime import human, review
+
+    f = _feature(ws, args)
+    if args.action == "accept":
+        if not args.ids:
+            raise HRError("name the findings to accept: `hr finding accept FND-001 --reason ...`")
+        who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
+        for fid in args.ids:
+            x = review.accept(f, fid, args.reason or "", who["by"], human.proof_fields(who))
+            print(f"{x['id']} accepted by {who['by']} via {who['via']}: {x['disposition']['reason']}")
+        return 0
+    data = review.load(f)
+    if args.json:
+        _print_json(data)
+        return 0
+    if not data["findings"]:
+        print("no findings recorded" if data["reviews"] else "no review of the written code is recorded")
+    for x in data["findings"]:
+        d = x.get("disposition") or {}
+        tail = d.get("reason") or d.get("review") or ""
+        print(f"{x['id']} [{d.get('kind') or 'open'}{': ' + tail if tail else ''}] {x['kind']} "
+              f"{review._place(x)} | {x['what']}")
+    return 0
+
+
 def cmd_scope_change(ws: Workspace, args) -> int:
     from runtime.state import machine
 
@@ -1469,6 +1537,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--recheck", action="store_true")
     sp.add_argument("--searched", help="comma-separated names searched for")
     sp.add_argument("--note")
+    sp = add("review-brief", cmd_review_brief, "work order for hr-code-reviewer: review the written code before final approval (L2, L3)")
+    sp.add_argument("--json", action="store_true")
+    sp = add("record-review", cmd_record_review, "record the code reviewer's report (every finding needs a changed file and lines)")
+    sp.add_argument("--report", help="report.json path (default: evidence/code-review/report.json of the feature)")
+    sp = add("finding", cmd_finding, "[accept is a human decision: --by, or --quote from chat] findings of the code review and what was decided")
+    sp.add_argument("action", nargs="?", choices=("list", "accept"), default="list")
+    sp.add_argument("ids", nargs="*", metavar="FND-ID")
+    sp.add_argument("--reason", help="accept: why the human keeps this code")
+    sp.add_argument("--by")
+    sp.add_argument("--quote", help="the human's exact words from their latest chat message")
+    sp.add_argument("--json", action="store_true")
     sp = add("scope-change", cmd_scope_change, "change outside the task boundary found -> scope change request")
     sp.add_argument("--task")
     sp.add_argument("--reason", required=True)

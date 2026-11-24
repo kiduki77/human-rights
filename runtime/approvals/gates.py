@@ -171,8 +171,11 @@ def approve_final(feature: Feature, st: Dict[str, Any], by: str, risks: str, not
     if not summ["all_passed"]:
         bad = [f"{r['test']['id']}={r['status']}" for r in summ["rows"] if r["status"] != "passed"]
         raise GateError("not all required tests pass on the current code: " + ", ".join(bad))
-    from runtime import redpill
+    from runtime import redpill, review
 
+    unreviewed = review.problems(feature, st, dispositions=True)
+    if unreviewed:
+        raise GateError("; ".join(unreviewed))
     redpill.check_before_approval(feature, "final")
     record = {
         "gate": "final",

@@ -242,7 +242,10 @@ def guards(feature: Feature, st: Dict[str, Any], target: str) -> List[str]:
             problems.append("final approval is required - go to awaiting_final_approval")
         problems += [f"[integration] {p}" for p in tests_gate(feature, st, strict=mode not in LENIENT_MODES)]
         if mode in ("L2", "L3"):
+            from runtime import review
+
             problems += _recheck_problems(feature, st)
+            problems += review.problems(feature, st, dispositions=target == "ready_to_merge")
         crit = [f["id"] for f in failures.unresolved(feature)]
         if crit:
             problems.append("unresolved failures: " + ", ".join(crit))

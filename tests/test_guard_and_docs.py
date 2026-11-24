@@ -23,6 +23,13 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(guard("PowerShell", command=".human-rights\\hr.cmd record-manual TEST-1 passed --by me"), "deny")
         self.assertEqual(guard("Bash", command=".human-rights/hr unblock --by me"), "deny")
 
+    def test_agent_cannot_accept_a_review_finding(self):
+        self.assertEqual(guard("Bash", command=".human-rights/hr finding accept FND-001 --reason x --by me"), "deny")
+        self.assertEqual(guard("Bash", command='.human-rights/hr finding accept FND-001 --reason x --quote "keep it"'), "allow")
+        self.assertEqual(guard("Bash", command=".human-rights/hr finding"), "allow")
+        self.assertEqual(guard("Bash", command=".human-rights/hr record-review"), "allow")
+        self.assertEqual(guard("Write", file_path="C:/repo/.human-rights/features/FEAT-001-x/.internal/findings.json"), "deny")
+
     def test_normal_commands_pass(self):
         self.assertEqual(guard("Bash", command=".human-rights/hr status"), "allow")
         self.assertEqual(guard("Bash", command=".human-rights/hr verify --level all"), "allow")

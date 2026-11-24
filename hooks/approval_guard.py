@@ -4,11 +4,11 @@ import re
 import sys
 
 HUMAN_ONLY = re.compile(
-    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|floor\s+(?:add|remove|accept)|redpill\s+(?:on|off|reveal))\b"
+    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|finding\s+accept|floor\s+(?:add|remove|accept)|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
-    r"(?:state\.json|test-results\.json|failures\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
+    r"(?:state\.json|test-results\.json|failures\.json|findings\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
     r"|\.local[/\\]+prompts\.jsonl)"
 )
 FLOOR = re.compile(r"\.(?:human-rights|workflow)[/\\]+floor\.(?:yaml|seal)")
@@ -64,8 +64,8 @@ def main() -> None:
             )
         if PROTECTED.search(cmd) and WRITE_HINT.search(cmd):
             deny(
-                "human-rights: state.json / test-results.json / failures.json / events.jsonl / logs are written only by "
-                "the hr runtime. Use `hr transition` for state changes and `hr verify` for test results."
+                "human-rights: state.json / test-results.json / failures.json / findings.json / events.jsonl / logs are written only "
+                "by the hr runtime. Use `hr transition` for state changes and `hr verify` for test results."
             )
         if FLOOR.search(cmd) and WRITE_HINT.search(cmd):
             deny(FLOOR_MESSAGE)

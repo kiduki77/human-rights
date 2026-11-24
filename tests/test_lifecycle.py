@@ -2,7 +2,7 @@ import json
 import unittest
 
 from helpers import ONE
-from helpers import L0_AXES, L3_AXES, Repo, install_example_plan
+from helpers import L0_AXES, L3_AXES, Repo, code_review, install_example_plan
 
 TASKS = ("TASK-001", "TASK-002", "TASK-003", "TASK-004")
 
@@ -142,6 +142,12 @@ class L3Test(unittest.TestCase):
         code, out = r.hr("impact", "--recheck", "--searched", "target_system,session")
         self.assertEqual(code, 0, out)
         code, out = r.hr("transition", "awaiting_final_approval")
+        self.assertEqual(code, 3, "nobody but the implementer has read the code")
+        self.assertIn("[review]", out)
+        self.assertNotIn("[impact]", out)
+        code, out = code_review(r)
+        self.assertEqual(code, 0, out)
+        code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 0, out)
         code, out = r.hr("transition", "ready_to_merge")
         self.assertEqual(code, 3, "L3 must not reach merge without final approval")
@@ -165,6 +171,7 @@ class L3Test(unittest.TestCase):
         code, out = r.hr("transition", "awaiting_final_approval")
         self.assertEqual(code, 3, "old results are stale after the code change")
         self.assertIn("stale", out)
+        self.assertIn("[review]", out)
 
     def test_repeated_integration_failure_escalates_to_human(self):
         r = self.r
