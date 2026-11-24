@@ -319,6 +319,10 @@ denies those commands. If you prefer, you can still run them yourself in your ow
 
 <i>Blue pill: approve what you're shown. Red pill: see what you're actually approving.</i>
 
+<br><br>
+
+<img alt="Red pill mode refusing an unread approval, then accepting it once the planted row is named" src="assets/redpill-demo.gif" width="720">
+
 </div>
 
 A human gate works only if the human reads what they approve. With red pill mode on, roughly one in N
