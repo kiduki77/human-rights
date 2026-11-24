@@ -43,6 +43,10 @@ refuses a decision that does not run at a terminal (exit `3`).
 | `scaffold [overview requirements design verification codebase research tasks l0-summary review-report group] [--overwrite]` | agent | create feature docs from templates (repo first); `tasks` pre-fills from `task-graph.json`; a group gets `group` by default |
 | `test-brief <TEST-ID> [--json]` | agent | work order for `hr-tester`: the approved steps and pass criteria, the evidence directory, the report shape, and the model to spawn with |
 | `record-agent <TEST-ID> [--report path]` | agent | record an agent test from the tester's `report.json`; refuses a missing step result or a passed step without an evidence file |
+| `review-brief [--json]` | agent | L2/L3: work order for `hr-code-reviewer` to review the written code: what to read, the diff, the three kinds of finding, the report shape, and the model to spawn with |
+| `record-review [--report path]` | agent | record the reviewer's `report.json` for the current commit; refuses a report that leaves a changed file unread, and a finding without a changed file and lines inside it. Closes earlier findings whose code changed |
+| `finding [--json]` | anyone | list the review findings and what was decided for each |
+| `finding accept <FND-ID>... --reason "<why>" --quote "<words>"` | **human decision** | the human keeps the code a finding points at; final approval is refused while a finding has no outcome |
 | `record-manual <TEST-ID> passed\|failed --quote "<words>" [--evidence url]` | **human decision** | record a human test result; a pass is refused until every script and agent test passes |
 | `agents [--json]` | anyone | model and effort each sub-agent runs with |
 | `failures [--classify FAIL-ID --cause-type ... --cause ... --fix-task ... --retest ...]` | agent | list / classify failures |

@@ -52,7 +52,7 @@ behind the pack. `hr templates update` refreshes only files that weren't customi
 | `overview.md` of a group | the approver | the feature list and order, shared decisions, what is left out, group checks |
 | `requirements.md` | the approver | intent, scope, acceptance criteria, decisions, open items |
 | `design.md` | the approver / reviewer | key design, alternatives, task DAG, uncertainty |
-| `verification.md` | the approver / QA | test plan, results, residual risk |
+| `verification.md` | the approver / QA | test plan, results, review findings on the written code, residual risk |
 | `tasks/TASK-NNN.md` | the reviewer | task purpose, boundary, verification, result |
 | `details/*.md` | anyone who needs to dig | code evidence, research, diagrams |
 

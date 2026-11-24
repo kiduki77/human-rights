@@ -16,9 +16,11 @@ the same fact into several places.
 | `state.json` | **runtime only** | state, mode, gates, approvals, git/GitHub links |
 | `test-results.json` | **runtime only** | runs: result, commit_sha, code_tree, dirty, log hash |
 | `failures.json` | **runtime only** (classify with `hr failures --classify`) | FAIL-NNN records |
+| `findings.json` | **runtime only** (`hr record-review`, `hr finding accept`) | reviews of the written code (REV-NNN, bound to a commit and code tree) and their findings (FND-NNN: kind, file, lines, outcome) |
 | `events.jsonl` | **runtime only** | hash-chained event log (tamper evidence) |
 | `logs/` | runtime (git-ignored) | raw test output |
 | `../evidence/<TEST-id>/` | `hr-tester` (git-ignored; hashes are kept in `test-results.json`) | per-step evidence and `report.json` of agent tests |
+| `../evidence/code-review/` | `hr-code-reviewer` (git-ignored) | `report.json` of the latest review of the written code |
 
 The design approval is bound to the hashes of `requirements.json`, `test-plan.json`, the plan fields of
 `task-graph.json` (runtime fields such as status are excluded), and `design.md`. If any of them changes,

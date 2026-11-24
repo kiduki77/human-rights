@@ -66,6 +66,20 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   plan's names are a guess. The runtime cannot do the search or tell whether it was thorough. It makes the
   result visible and makes each row answerable. A graph of feature dependencies kept across features was
   rejected: relations without evidence would pile up.
+- **The written code is reviewed for what nothing asked for.** The independent review used to happen once,
+  on the plan. A task's `scope.paths` limits where code changes and not how much is built there, so extra
+  classes, layers and helpers passed every gate with their own tests. At L2 and L3 an agent that did not
+  write the code now reads the diff against the requirements and the approved design before final approval.
+  It reports three things only: a change nothing explains, repeated code, and unused code. A wider review
+  would produce opinions the human has to referee. The runtime cannot tell who wrote the report or whether
+  the reviewer was given the implementer's story. It builds the work order, so the coordinator has nothing
+  to add, and it checks what it can: every changed file is listed as read, and every finding names a changed
+  file and lines inside it. A review is bound to the code tree, like a test result. Each finding ends in one
+  of two ways. The code is removed, which the next review confirms by not finding it again, so the agent
+  never declares its own code removed. Or the human keeps it with a reason, through the same quote check as
+  an approval. The reviewer does not edit code, and no agent simplifies code on its own: that would produce
+  changes nobody approved. Findings live in `findings.json` with a `source` field, so the tester's findings
+  can use the same outcomes later.
 - **The floor carries a record of the owner's last decision.** The hook that keeps the agent away from
   `floor.yaml` reads the text of a command, and text cannot cover every way a shell changes a file. So the
   runtime checks the result instead of the command: `hr floor add|remove|accept` write a hash of the rules to
