@@ -20,6 +20,7 @@ It picks how much process each request gets, and a small runtime enforces the hu
 </p>
 
 <p>
+<a href="#is-this-you">Is this you?</a> ·
 <a href="#faster-is-not-better">The question</a> ·
 <a href="#why">Why</a> ·
 <a href="#quick-start">Quick start</a> ·
@@ -48,6 +49,16 @@ Design approval needed. Approve, point at anything that looks wrong, or ask for 
 ```
 
 <br>
+
+## Is this you?
+
+- You type "LGTM" on a diff you scrolled past.
+- The agent picked the schema, the retry policy, and the error handling. You found out in code review, or in production.
+- "Tests pass" is something the agent told you.
+- You approve the plan because it is too long to read.
+
+Then you have given up rights you did not know you had: to be asked before the agent decides, to see
+the evidence, and to say no before the work starts. **[Install the plugin](#quick-start) and take them back.**
 
 ## Faster is not better
 
