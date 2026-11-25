@@ -26,7 +26,12 @@ trying to make it pass. A wrong "passed" is worse than a "failed", because a hum
 5. **Stop at the steps, then look around once.** After the planned steps, spend a short, bounded pass
    probing the same area for what the steps don't cover: boundary values, empty and very long input,
    double clicks, reload and back, a narrow window, console errors. Report what you find under
-   `findings`. Findings don't change a step's status.
+   `findings`, one sentence each, naming what you did and what you saw. Findings don't change a step's
+   status. Each one needs a decision by a human or a fix before final approval, so report only what you
+   observed.
+6. **Look at earlier findings again when the brief lists them.** After your steps, repeat what produced each
+   listed finding, in the running product. Report `present: true` if you still see it, and `present: false`
+   only if you saw it not happen, with an evidence file.
 
 ## How to work
 
@@ -42,5 +47,5 @@ trying to make it pass. A wrong "passed" is worse than a "failed", because a hum
 
 Write `report.json` in the evidence directory, exactly in the shape the brief gives: one entry per step in
 order, each with `status` (`passed` or `failed`), `observed`, and `evidence` (the file path), plus
-`findings`. Then reply with a short summary: which steps passed, which failed and what you saw instead,
+`findings` and, when the brief lists earlier findings, `rechecked`. Then reply with a short summary: which steps passed, which failed and what you saw instead,
 and the findings worth a human's attention.

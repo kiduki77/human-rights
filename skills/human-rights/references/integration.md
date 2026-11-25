@@ -12,7 +12,10 @@
    `hr record-agent TEST-020`. The runtime rejects a report that lacks a result or an evidence file for any
    step. Never perform an agent test yourself in the conversation that wrote the code, and never edit the
    report. Without sub-agents, run the steps yourself in a fresh pass, with the same evidence rules.
-   Read the tester's `findings`: a real defect outside the steps becomes a fix or a disclosed risk.
+   The tester's `findings` (defects it noticed outside the steps) are recorded as `FND-NNN` with
+   `source: tester`, the test and the run that found them. They appear in `verification.md` under the test
+   and in the findings table. Each one needs a disposition before final approval, see
+   [Tester findings](#tester-findings).
 4. Human tests (`[HUMAN]`) come last, only when every script and agent test passes on the current code;
    the runtime refuses an earlier pass. Show the steps and their pass criteria from `verification.md`, and
    ask the human to report the result in chat. Record their reply:
@@ -46,7 +49,42 @@
    makes it stale. At L2 and L3 the runtime refuses `awaiting_final_approval` without a review of the
    current code, and refuses the final approval while a finding has no outcome.
 7. `hr render` refreshes the result tables in `verification.md` and `overview.md`, the impact table, and
-   the review findings in `verification.md`.
+   the findings in `verification.md`: code review findings and tester findings in one table.
+
+## Tester findings
+
+A finding of `hr-tester` is a defect outside the planned steps. It does not change the step's status, so a
+test can pass with findings. Final approval is refused while any finding of any source has no
+disposition. There are three:
+
+| Disposition | Who sets it | How |
+|---|---|---|
+| **fixed** | the agent, and the runtime checks it | `hr finding fix FND-003 --commit <sha>` |
+| **accepted as a risk** | the human | `hr finding accept FND-003 --reason "<why>" --quote "<their words>"` |
+| **not a defect** | the human | `hr finding dismiss FND-003 --reason "<why>" --quote "<their words>"` |
+
+The two human decisions are guarded like an approval: the hook denies them without a quote, the runtime
+checks the quote against the human's latest message, and a process with no terminal and no quote is refused.
+Show the human the finding and the evidence. Do not argue a finding away in the documents.
+
+`fix` is accepted only when all of these hold, and the runtime checks each one:
+
+1. The commit exists and is a descendant of the commit the run that found the finding tested, so it is
+   later code. It is also in the history of the current commit.
+2. A later run of **the same test** was recorded on clean code at or after that commit, and its report
+   re-checked this finding. `hr test-brief TEST-020` lists every open finding of the test, and the tester
+   adds `"rechecked": [{"finding": "FND-003", "present": false, "observed": "...", "evidence": "..."}]` to
+   its report. `hr record-agent` stores that on the run and refuses a finding that is not open for this test,
+   a missing `present`, or a "gone" without an evidence file.
+3. That run passed (`agent_passed`) and reported the finding as gone (`present: false`).
+
+A re-run that passes its steps proves nothing about a defect outside the steps, which is why the tester
+looks at the finding again. The agent cannot mark its own work fixed with a commit alone. If the tester sees
+the defect again, the finding stays open. If a later run reports the same text again after a fix, it is a
+new finding.
+
+A re-run that reports text identical to a finding that is still open, accepted or not a defect adds no row.
+The output names the existing finding.
 
 ## Handling failures
 

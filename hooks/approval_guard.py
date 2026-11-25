@@ -4,7 +4,7 @@ import re
 import sys
 
 HUMAN_ONLY = re.compile(
-    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|finding\s+accept|floor\s+(?:add|remove|accept)|redpill\s+(?:on|off|reveal))\b"
+    r"(?:\bhr(?:\.py|\.cmd)?|runtime[/\\]+hr\.py)[\"']?\s+(?:[^|;&\n]*\s)?(approve|record-manual|unblock|flag|finding\s+(?:accept|dismiss)|floor\s+(?:add|remove|accept)|redpill\s+(?:on|off|reveal))\b"
 )
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
