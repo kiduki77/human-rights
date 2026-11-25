@@ -134,6 +134,35 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
 - **Every drill ends with the reason (v0.5).** Catching or giving up shows why the item was unacceptable
   and what the real value is. Difficulty adapts to the human's record. The aim is a better reviewer, not a
   score.
+- **A catch made by naming many rows does not count (v0.5).** `hr approve --flag` takes any number of IDs,
+  and the plant counts as caught if one of them matches, so naming every row gave a perfect catch rate
+  without a better review. A catch that names more than `redpill.max_flags` rows (default 3) is recorded as
+  `scattershot`: the plant is removed and the explanation is shown, but the drill is left out of the catch
+  rate and the adaptive level, as a catch after a refusal is. Repeating one ID counts once. The limit changes
+  what is counted, not what is allowed, because naming several rows for real reasons is a good review.
+- **The record shows how much the human named, never whether they were right (v0.5).** The runtime counts
+  every row named that was not the plant, on plans with a drill and without one, and counts approvals and
+  the approvals that named at least one row. An approval here is an `hr approve` call at the design or final
+  gate that ended in a decision: approved, or sent back because rows were named. A blind approval refused
+  during a drill is not one. The output says "rows named that were not the plant", because some of them are
+  real concerns. The split between drilled and clean plans is not printed: a count that rose on one plan would
+  tell the agent a drill is active.
+- **Turning drills off needs a reason and leaves a record (v0.5).** `hr redpill off` refuses without
+  `--reason`, and the reason has to be the human's words, which the command skill asks for. Each `on`, `off`
+  and change of a setting goes to `.human-rights/redpill-log.jsonl` and, when a feature is active, to its
+  event log as `drill_settings_changed`, like a floor change. The workspace log is separate because the
+  settings belong to the workspace and no feature has to be active, and the hook denies the agent's writes to
+  it. Status and metrics show how long drills were off with each reason, and how many approvals were decided
+  while drills could not run (drills off, or a gate outside `redpill.gates`).
+- **A weaker setting is recorded like turning drills off (v0.5).** A lower frequency, an easier difficulty, a
+  narrower list of gates, and a higher `max_flags` weaken the drill the same way, so every change of a
+  setting is logged with what it changed from and to. Only `off` needs a reason. `hr init --redpill` is logged
+  as set through `hr init`, because it has no human decision behind it.
+- **A hand edit of `redpill.enabled` is not detected (v0.5).** `floor.yaml` has a seal because the floor is
+  one file the owner changes through one command. `config.yaml` holds every setting and is edited by hand by
+  design, so a seal would flag every edit. The log therefore records the decisions made through `hr`, and
+  an edit of the file goes unseen. The agent is told not to edit `config.yaml`, and nothing in the hook
+  stops it.
 - **Stdlib-only runtime, Python 3.8+.** There is nothing to install for gates to work; `jsonschema` is an
   optional extra.
 

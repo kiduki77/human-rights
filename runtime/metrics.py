@@ -167,6 +167,7 @@ def aggregate(ws: Workspace) -> Dict[str, Any]:
         "mean_verification_coverage": mean("verification_coverage", rows),
         "total_tokens": sum(r["tokens"] for r in rows),
         "total_test_seconds": round(sum(r["test_seconds"] for r in rows), 2),
+        "redpill": redpill.progress(ws),
         "rows": rows,
     }
 

@@ -11,7 +11,7 @@ refuses a decision that does not run at a terminal (exit `3`).
 
 | Command | Who | What it does |
 |---|---|---|
-| `init [--language en\|ko] [--agents preset] [--redpill on\|off --redpill-difficulty D --redpill-one-in N]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; sets the report language, sub-agent models and drill settings the human chose |
+| `init [--language en\|ko] [--agents preset] [--redpill on\|off --redpill-difficulty D --redpill-one-in N]` | human / agent (`/hrs:init`) | create `.human-rights/` (config, .gitignore, wrappers); safe to re-run; sets the report language, sub-agent models and drill settings the human chose. A drill setting it changes is logged as set through `hr init`, with no human decision behind it |
 | `new "<title>" --slug s --request "<text>"` | agent | create a feature (`triaging`), make it active |
 | `classify --axes <json\|@file\|-> [--flags a,b] [--paths p1,p2] [--concept "..." --searched a,b --consumers p1,p2] [--size single\|compound --size-reason "..."]` | agent | route / reclassify, set required gates, record the size decision (required for L2/L3). `--paths` lists the files you expect to touch; they and the real diff are checked against the owner's floor, which can raise the mode (omitted: the paths from the last classification are kept) |
 | `floor` | anyone | list the owner's floor rules and, with an active feature, the touched paths each rule hits |
@@ -33,11 +33,11 @@ refuses a decision that does not run at a terminal (exit `3`).
 | `schedule [--start] [--max N] [--json]` | agent | next conflict-free batch from the DAG, with reasons for deferred/waiting tasks. `--start` creates the worktrees and prints sub-agent briefs |
 | `worktree create\|merge\|remove\|list\|brief [TASK] [--remove] [--force]` | agent | task worktrees; `merge` enforces verified-and-unchanged, dependency order, clean trees; aborts cleanly on conflict |
 | `flag <ID>... --quote "<words>"` | **human decision** | point at approval items the human would not approve (catches a red pill plant, otherwise a review concern) |
-| `redpill on [--one-in N] [--difficulty easy\|normal\|hard\|adaptive] [--gates ...] [--author agent\|builtin] [--language en\|ko]` / `redpill off` / `redpill reveal` (each `--quote "<words>"`) | **human decision** | Red pill mode toggle, difficulty, frequency, give up on a drill |
-| `redpill status` | anyone | Red pill settings, adaptive level, catch rate per difficulty, most-missed kinds (never whether a drill is active) |
+| `redpill on [--one-in N] [--difficulty easy\|normal\|hard\|adaptive] [--gates ...] [--author agent\|builtin] [--max-flags N] [--language en|ko]\|ko] [--reason "<why>"]` / `redpill off --reason "<why>"` / `redpill reveal` (each `--quote "<words>"`) | **human decision** | Red pill mode toggle, difficulty, frequency, give up on a drill. `off` refuses without `--reason`. Every on, off and setting change is logged with who, when, and why |
+| `redpill status` | anyone | Red pill settings, adaptive level, catch rate per difficulty, most-missed kinds, drills not counted for naming too many rows, approvals and rows named that were not the plant, time drills were off with reasons (never whether a drill is active) |
 | `redpill brief --gate design\|final [--json]` | agent | prompt and model for `hr-redpill-author` |
 | `redpill seed --gate design\|final --from <file\|->` | `hr-redpill-author` only | submit drill candidates for the current plan; the coordinating conversation never runs or reads this |
-| `metrics [--all] [--json]` | anyone | lead time, approval wait, rework, failures, coverage, test time, tokens, parallel speedup |
+| `metrics [--all] [--json]` | anyone | lead time, approval wait, rework, failures, coverage, test time, tokens, parallel speedup, red pill results (`--all` adds the time drills were off) |
 | `metrics record --kind <kind> --value N [--note] [--by]` | agent / human | host-reported values: `tokens`, `agent_seconds`, `review_minutes`, `escaped_defect`, `intent_mismatch`, `unnecessary_question`, `question_asked` |
 | `templates install\|update\|status [--from DIR] [--force]` | human / agent | install the plugin's (or an org's) template pack into `.human-rights/templates/`; customized files are kept unless `--force` |
 | `scaffold [overview requirements design verification codebase research tasks l0-summary review-report group] [--overwrite]` | agent | create feature docs from templates (repo first); `tasks` pre-fills from `task-graph.json`; a group gets `group` by default |

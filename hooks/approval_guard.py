@@ -9,7 +9,7 @@ HUMAN_ONLY = re.compile(
 PROTECTED = re.compile(
     r"\.(?:human-rights|workflow)[/\\]+(?:(?:features|groups)[/\\]+(?:[^/\\\s\"']+[/\\]+)+?\.internal[/\\]+"
     r"(?:state\.json|test-results\.json|failures\.json|findings\.json|events\.jsonl|redpill(?:-pool)?\.json|logs[/\\])"
-    r"|\.local[/\\]+prompts\.jsonl)"
+    r"|\.local[/\\]+prompts\.jsonl|redpill-log\.jsonl)"
 )
 FLOOR = re.compile(r"\.(?:human-rights|workflow)[/\\]+floor\.(?:yaml|seal)")
 SECRET = re.compile(r"redpill(?:-pool)?\.json")
@@ -64,7 +64,7 @@ def main() -> None:
             )
         if PROTECTED.search(cmd) and WRITE_HINT.search(cmd):
             deny(
-                "human-rights: state.json / test-results.json / failures.json / findings.json / events.jsonl / logs are written only "
+                "human-rights: state.json / test-results.json / failures.json / findings.json / events.jsonl / redpill-log.jsonl / logs are written only "
                 "by the hr runtime. Use `hr transition` for state changes and `hr verify` for test results."
             )
         if FLOOR.search(cmd) and WRITE_HINT.search(cmd):

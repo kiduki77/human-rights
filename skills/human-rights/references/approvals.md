@@ -23,7 +23,8 @@ Read the human's latest message and map it:
 | reports a manual test ("TEST-013 해봤는데 통과, 영상 링크 …") | `hr record-manual TEST-013 passed --quote "<words>" [--evidence <url>]` |
 | releases a block ("이미지 고쳤어, 다시 해봐") | `hr unblock --quote "<words>" --note "<their decision>"` |
 | gives up on a drill ("정답 보여줘") | `hr redpill reveal --quote "<words>"` |
-| toggles drills ("레드필 켜줘, 5번에 한 번") | `hr redpill on --one-in 5 --quote "<words>"` / `hr redpill off --quote "<words>"` |
+| turns drills on ("레드필 켜줘, 5번에 한 번") | `hr redpill on --one-in 5 --quote "<words>"` |
+| turns drills off ("레드필 꺼줘, 오늘 배포해야 해") | `hr redpill off --reason "<their reason, in their words>" --quote "<words>"` |
 
 Rules:
 
@@ -162,7 +163,9 @@ A plant that is a missing row is caught by naming the ID that should be there ("
 
 `redpill.difficulty: adaptive` (the default) starts at easy, moves up after 2 clean catches in a row and down
 after 2 misses in a row, counted across all features. A clean catch is one made before any approval was
-refused. A catch after a refusal is recorded separately and does not move the level.
+refused, naming at most `redpill.max_flags` rows. A catch after a refusal, and a catch made by naming more
+than `redpill.max_flags` rows at once, are recorded separately. Neither moves the level or counts in the
+catch rate.
 
 The plant exists only in the rendered `overview.md` / `verification.md` tables. It is never in the plan
 JSON, `requirements.json` or `design.md`, so it can't be executed, and it never affects approval hashes. When the drill ends,
@@ -198,6 +201,10 @@ again. They answer in chat:
   with. Relay that explanation as is. When they say a row is missing, flag the ID they named.
 - They point at a real item: it becomes a review concern and the approval is refused until you address it.
   The drill stays armed.
+- They name more than `redpill.max_flags` rows (default 3) in one message and the plant is one of them: the
+  plant is removed and `hr` says the drill is not counted, because naming every row finds any plant. The
+  other rows are still review concerns. Pass exactly what the human named. Naming several rows for real
+  reasons is allowed, and only the count changes.
 - They give up ("정답 보여줘"): `hr redpill reveal --quote ...` shows the plant and the explanation, and
   records it as missed.
 
@@ -214,11 +221,32 @@ Your job:
 
 ### Settings and results
 
-Turning it on and off, the difficulty, and the frequency are the human's decision. They choose them during
-`/hrs:init`, say it in chat, or type `/hrs:redpill on 5 hard`, `/hrs:redpill off`. You run
-`hr redpill on [--one-in N] [--difficulty easy|normal|hard|adaptive] [--gates design,final] --quote "<words>"`
-or `hr redpill off --quote "<words>"`.
+Turning it on and off, the difficulty, the frequency, and `max_flags` are the human's decision. They choose
+them during `/hrs:init`, say it in chat, or type `/hrs:redpill on 5 hard`, `/hrs:redpill off`. You run
+`hr redpill on [--one-in N] [--difficulty easy|normal|hard|adaptive] [--gates design,final] [--max-flags N] [--reason "<why>"] --quote "<words>"`
+or `hr redpill off --reason "<why>" --quote "<words>"`.
+
+`off` refuses to run without `--reason`. The reason is the human's: when they turn drills off without giving
+one, ask them once and pass what they say. Never write a reason for them.
+
+Every `on`, `off` and change of a setting is written to `.human-rights/redpill-log.jsonl` and, when a feature
+is active, to its event log as `drill_settings_changed`, with who decided, when, how (chat quote or terminal),
+the reason, and what changed from and to. A change of frequency, difficulty, gates or `max_flags` is
+recorded the same way, because an easier drill weakens the check as much as turning it off does.
 
 `hr redpill status` shows the settings, the current adaptive level, the catch rate per difficulty, and the
-kinds of flaw missed most often. It never shows whether a drill is active. `hr metrics` reports drills,
-catches, misses, and refused rubber-stamp approvals per feature.
+kinds of flaw missed most often. Next to the catch rate it shows:
+
+- drills that ended in a catch naming more than `max_flags` rows, which are not counted;
+- approvals, how many of them were decided while drills could not run (drills off, or a gate outside
+  `redpill.gates`), and how many named at least one row;
+- rows named that were not the plant, in total and per approval. Some of those are real concerns. The number
+  says how much the human named, not whether they were right;
+- how long drills were off, with the reason and the person for each period, and how many times a setting
+  changed.
+
+An approval here means an `hr approve` call at the design or final gate that ended in a decision: approved,
+or sent back because rows were named. A refusal of a blind approval during a drill is not one.
+
+`hr redpill status` never shows whether a drill is active. `hr metrics` reports the same numbers per
+feature (`--all`: for the workspace).

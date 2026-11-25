@@ -140,7 +140,7 @@ class ChatDrillTest(ChatBase):
         self.assertIn(plant, out)
         r.say("레드필 꺼줘")
         self.assertEqual(r.hr("redpill", "off", "--quote", "레드필 켜줘")[0], 3)
-        self.assertEqual(r.hr("redpill", "off", "--quote", "레드필 꺼줘")[0], 0)
+        self.assertEqual(r.hr("redpill", "off", "--reason", "배포 직전", "--quote", "레드필 꺼줘")[0], 0)
         self.assertFalse(redpill.settings(self.ws())["enabled"])
 
 
