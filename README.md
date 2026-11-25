@@ -471,6 +471,13 @@ Locally customized templates are never overwritten without `--force`. The runtim
 values itself (agent tokens, human review minutes, escaped defects). Record those with
 `hr metrics record --kind <kind> --value <n>`.
 
+An escaped defect or an intent mismatch is only a review miss if the problem was visible in what the human was
+shown when they approved. A bug that appears after a later feature is built on top, or a need that changed after
+the approval, could not have been seen, and no drill can lower that count. So both kinds take
+`--visible-at-approval yes|no`, and the agent asks the human for the answer every time. `hr metrics` reports
+yes, no and unknown separately. Only yes counts as a review miss, and records entered before this option
+existed show as unknown.
+
 ## Reference
 
 <details>

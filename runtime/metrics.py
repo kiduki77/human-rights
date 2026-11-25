@@ -16,6 +16,8 @@ MANUAL_KINDS = {
     "unnecessary_question": "a question whose answer changed neither design nor result",
     "question_asked": "a question asked during elicitation (denominator for unnecessary questions)",
 }
+VISIBILITY_KINDS = ("escaped_defect", "intent_mismatch")
+VISIBILITY = ("yes", "no", "unknown")
 WAIT_STATES = ("awaiting_design_approval", "awaiting_final_approval", "awaiting_split_approval")
 
 
@@ -46,6 +48,7 @@ def feature_metrics(feature: Feature) -> Dict[str, Any]:
     test_seconds = 0.0
     tasks_reworked = set()
     manual: Dict[str, float] = {k: 0 for k in MANUAL_KINDS}
+    seen: Dict[str, Dict[str, float]] = {k: {v: 0 for v in VISIBILITY} for k in VISIBILITY_KINDS}
     wt_created: Dict[str, datetime.datetime] = {}
     wt_merged: Dict[str, datetime.datetime] = {}
     batches: List[List[str]] = []
@@ -82,6 +85,9 @@ def feature_metrics(feature: Feature) -> Dict[str, Any]:
                 counts["failed_runs"] += 1
         elif kind == "metric_recorded":
             manual[e["kind"]] = manual.get(e["kind"], 0) + float(e.get("value") or 0)
+            if e["kind"] in seen:
+                v = e.get("visible_at_approval")
+                seen[e["kind"]][v if v in ("yes", "no") else "unknown"] += float(e.get("value") or 0)
         elif kind == "worktree_created":
             wt_created[e["task_id"]] = t
         elif kind == "worktree_merged":
@@ -135,12 +141,19 @@ def feature_metrics(feature: Feature) -> Dict[str, Any]:
         "verification_coverage": round(covered / len(must), 3) if must else None,
         "escaped_defects": manual.get("escaped_defect", 0),
         "intent_mismatch": manual.get("intent_mismatch", 0),
+        "escaped_defects_by_visibility": seen["escaped_defect"],
+        "intent_mismatch_by_visibility": seen["intent_mismatch"],
+        "review_misses": seen["escaped_defect"]["yes"] + seen["intent_mismatch"]["yes"],
         "unnecessary_question_rate": round(manual.get("unnecessary_question", 0) / asked, 3) if asked else None,
         "tokens": manual.get("tokens", 0),
         "agent_seconds": manual.get("agent_seconds", 0),
         "parallel_batches": par,
         "redpill": redpill.stats(feature),
     }
+
+
+def _sum_visibility(rows: List[Dict[str, Any]], key: str) -> Dict[str, float]:
+    return {v: sum(r[key][v] for r in rows) for v in VISIBILITY}
 
 
 def aggregate(ws: Workspace) -> Dict[str, Any]:
@@ -159,12 +172,16 @@ def aggregate(ws: Workspace) -> Dict[str, Any]:
             by_mode[m] = {"features": len(src), "mean_lead_time_s": mean("lead_time_s", src),
                           "mean_approval_wait_s": mean("approval_wait_s", src),
                           "mean_rework_rate": mean("rework_rate", src),
-                          "escaped_defects": sum(r["escaped_defects"] for r in src)}
+                          "escaped_defects": sum(r["escaped_defects"] for r in src),
+                          "review_misses": sum(r["review_misses"] for r in src)}
     return {
         "features": len(rows),
         "completed": len(done),
         "by_mode": by_mode,
         "mean_verification_coverage": mean("verification_coverage", rows),
+        "escaped_defects_by_visibility": _sum_visibility(rows, "escaped_defects_by_visibility"),
+        "intent_mismatch_by_visibility": _sum_visibility(rows, "intent_mismatch_by_visibility"),
+        "review_misses": sum(r["review_misses"] for r in rows),
         "total_tokens": sum(r["tokens"] for r in rows),
         "total_test_seconds": round(sum(r["test_seconds"] for r in rows), 2),
         "redpill": redpill.progress(ws),
@@ -181,3 +198,7 @@ def fmt_duration(s: Optional[float]) -> str:
     if s < 7200:
         return f"{s // 60}m"
     return f"{s // 3600}h{(s % 3600) // 60:02d}m"
+
+
+def fmt_visibility(v: Dict[str, float]) -> str:
+    return f"{v['yes']:.0f} visible at approval, {v['no']:.0f} not visible, {v['unknown']:.0f} unknown"

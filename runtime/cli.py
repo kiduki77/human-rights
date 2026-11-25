@@ -1214,7 +1214,15 @@ def cmd_metrics(ws: Workspace, args) -> int:
         f = _feature(ws, args)
         if args.kind not in metrics.MANUAL_KINDS:
             raise HRError(f"--kind must be one of {', '.join(metrics.MANUAL_KINDS)}")
-        f.emit("metric_recorded", kind=args.kind, value=args.value, note=args.note or "", actor=args.by or "agent")
+        extra = {}
+        if args.kind in metrics.VISIBILITY_KINDS:
+            if args.visible_at_approval is None:
+                raise HRError(f"{args.kind} needs --visible-at-approval yes|no: ask the human whether the problem was "
+                              "visible in what they were shown when they approved. Never guess the answer")
+            extra["visible_at_approval"] = args.visible_at_approval
+        elif args.visible_at_approval is not None:
+            raise HRError(f"--visible-at-approval applies only to {' and '.join(metrics.VISIBILITY_KINDS)}")
+        f.emit("metric_recorded", kind=args.kind, value=args.value, note=args.note or "", actor=args.by or "agent", **extra)
         print(f"recorded {args.kind}={args.value:g}")
         return 0
     fd = metrics.fmt_duration
@@ -1228,7 +1236,10 @@ def cmd_metrics(ws: Workspace, args) -> int:
               f"{data['mean_verification_coverage']}  |  tokens {data['total_tokens']:.0f}  |  test time {fd(data['total_test_seconds'])}")
         for m, v in data["by_mode"].items():
             print(f"  {m}: {v['features']} done, lead {fd(v['mean_lead_time_s'])}, approval wait "
-                  f"{fd(v['mean_approval_wait_s'])}, rework {v['mean_rework_rate']}, escaped defects {v['escaped_defects']:.0f}")
+                  f"{fd(v['mean_approval_wait_s'])}, rework {v['mean_rework_rate']}, escaped defects {v['escaped_defects']:.0f}, review misses {v['review_misses']:.0f}")
+        print(f"  escaped defects: {metrics.fmt_visibility(data['escaped_defects_by_visibility'])}")
+        print(f"  intent mismatch: {metrics.fmt_visibility(data['intent_mismatch_by_visibility'])}")
+        print(f"  review misses (visible at approval only): {data['review_misses']:.0f}")
         rp = data["redpill"]
         print(f"  red pill: drills {rp['drills']}, caught {rp['caught']}, after a refusal {rp['caught_after_refusal']}, "
               f"scattershot (not counted) {rp['scattershot']}, missed {rp['missed']}, catch rate {rp['catch_rate']}")
@@ -1247,8 +1258,10 @@ def cmd_metrics(ws: Workspace, args) -> int:
           f"rejections {d['rejections']}  |  scope changes {d['scope_changes']}  |  reclassifications {d['reclassifications']}")
     print(f"  test runs {d['test_runs']} ({d['failed_runs']} failed, {fd(d['test_seconds'])})  |  "
           f"verification coverage {d['verification_coverage']}")
-    print(f"  escaped defects {d['escaped_defects']:.0f}  |  intent mismatch {d['intent_mismatch']:.0f}  |  "
-          f"unnecessary question rate {d['unnecessary_question_rate']}  |  tokens {d['tokens']:.0f}  |  agent time {fd(d['agent_seconds'])}")
+    print(f"  escaped defects {d['escaped_defects']:.0f} ({metrics.fmt_visibility(d['escaped_defects_by_visibility'])})  |  "
+          f"intent mismatch {d['intent_mismatch']:.0f} ({metrics.fmt_visibility(d['intent_mismatch_by_visibility'])})  |  "
+          f"review misses {d['review_misses']:.0f}")
+    print(f"  unnecessary question rate {d['unnecessary_question_rate']}  |  tokens {d['tokens']:.0f}  |  agent time {fd(d['agent_seconds'])}")
     rp = d["redpill"]
     print(f"  red pill: drills {rp['drills']}, caught {rp['caught']}, after a refusal {rp['caught_after_refusal']}, "
           f"scattershot (not counted) {rp['scattershot']}, missed {rp['missed']}, catch rate {rp['catch_rate']}")
@@ -1625,6 +1638,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--value", type=float, default=1)
     sp.add_argument("--note")
     sp.add_argument("--by")
+    sp.add_argument("--visible-at-approval", choices=("yes", "no"), help="escaped_defect and intent_mismatch: was the problem visible in what the human was shown at approval")
     sp = add("templates", cmd_templates, "install / update / status of the repo's shared templates", feature=False)
     sp.add_argument("t_cmd", choices=("install", "update", "status"))
     sp.add_argument("--from", dest="source", help="template pack directory (default: the plugin's)")
