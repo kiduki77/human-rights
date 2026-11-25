@@ -241,3 +241,26 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   gate, and the PreToolUse hook denies the agent's writes to it. Changes go through `hr floor add|remove`,
   which needs the human's quote. Declared paths decide the grade at classification, before any file exists.
   The real diff is checked at every later transition, because a declaration is an estimate too.
+
+## Checking that each new part is needed
+
+- **The check runs on the plan, before any code exists.** The code review after the work is the counterpart.
+  The planning guide already says the default is the smallest safe change to the existing structure, and
+  nothing enforced it. A plan that adds a layer nobody asked for costs the human a review of the layer, and
+  the tasks and tests built on it.
+- **`design.md` lists what the design introduces.** Each new module, layer or dependency has the
+  requirement behind it, the existing thing in the repository that was considered, and why it was not
+  used. "Nothing new" is a valid answer, because most changes should introduce nothing.
+- **`hr doc-check` requires the section at L2 and L3, and finds it by a marker line.** The section is found
+  by the line `<!-- hr:introduces -->`, not by its heading, so it works in any language and with a
+  translated or renamed heading. It is not a generated `hr:*` block: those are left out of the approval
+  hash, and this text is what the approver is approving. It must be non-empty, and the placeholder check
+  rejects an unfilled template. The runtime does not judge whether the reasons are good. The reviewer does.
+- **Old workspaces fail with a fix hint.** A `design.md` without the marker gets one error that says what
+  to add and where the template is. Nothing is rewritten for the user. L0, L1 and groups are not checked.
+- **`hr-plan-reviewer` has a twelfth axis, Need.** The report has no fixed list of axes that the runtime
+  validates, so the change is the agent prompt and the docs. A task or new part that nothing requires, with
+  no reason the existing code falls short, is a hard fail in the reviewer's verdict.
+- **A task with no requirement is refused at L2 and L3.** `plan-check` turns the warning into a hard fail
+  there, because those levels have a design gate and a human reads each task. At L0 and L1 it stays a
+  warning: small changes often have one task and one sentence of intent.

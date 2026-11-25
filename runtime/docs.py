@@ -25,6 +25,7 @@ ROW_ID = re.compile(r"\[?([A-Za-z]+-\d+)")
 FOCUS_MAX = 7
 FOCUS_RANK = {"flag": 0, "changed": 1, "task": 2, "assumed_high": 3, "not_user": 4, "assumed_medium": 5}
 MERMAID_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.S)
+INTRODUCES_RE = re.compile(r"<!-- hr:introduces -->(.*?)(?=^## |\Z)", re.S | re.M)
 MERMAID_KINDS = ("flowchart", "graph", "sequenceDiagram", "stateDiagram", "stateDiagram-v2", "classDiagram",
                  "erDiagram", "gantt", "journey", "timeline", "mindmap")
 
@@ -513,6 +514,8 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
         if fname == "design.md" and not lenient and not group and _needs_design_diagram(feature, st) and not MERMAID_RE.search(text):
             errors.append("design.md: this change crosses module or process boundaries (or a task changes a flow) but "
                           "there is no Mermaid diagram - add a sequence, state, or component diagram of what changes")
+        if fname == "design.md" and not lenient and not group:
+            errors += _introduces_problems(text)
         raw_log_lines = sum(1 for l in lines if re.match(r"^\s*(\[?\d{4}-\d{2}-\d{2}[T ][\d:]+|Traceback|\s+at .+\(.+:\d+\))", l))
         if raw_log_lines > 10:
             warnings.append(f"{fname}: {raw_log_lines} lines look like raw logs - move them to details/ and link")
@@ -534,6 +537,18 @@ def check_docs(feature: Feature) -> Dict[str, List[str]]:
         target = errors if prose.settings(feature.ws)["mode"] == "error" else warnings
         target += [f"{h} - {prose.ADVICE}" for h in hits[:1]] + hits[1:]
     return {"errors": errors, "warnings": warnings}
+
+
+def _introduces_problems(text: str) -> List[str]:
+    m = INTRODUCES_RE.search(text)
+    if not m:
+        return ["design.md: it does not list what the design introduces. Add a section with the line "
+                "`<!-- hr:introduces -->` under its heading, as in templates/design.md: each new module, layer or "
+                "dependency, the existing thing considered, and why it was not used. Write 'Nothing new' if there is none"]
+    if not m.group(1).strip():
+        return ["design.md: the section marked `<!-- hr:introduces -->` is empty - list what the design introduces, "
+                "or write 'Nothing new' and why"]
+    return []
 
 
 def _needs_design_diagram(feature: Feature, st: Dict[str, Any]) -> bool:

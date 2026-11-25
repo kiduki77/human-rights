@@ -60,7 +60,7 @@ behind the pack. `hr templates update` refreshes only files that weren't customi
 | `overview.md` | the approver | goal, state, decisions, next action |
 | `overview.md` of a group | the approver | the feature list and order, shared decisions, what is left out, group checks |
 | `requirements.md` | the approver | intent, scope, acceptance criteria, decisions, open items |
-| `design.md` | the approver / reviewer | key design, alternatives, task DAG, uncertainty |
+| `design.md` | the approver / reviewer | key design, alternatives, what the design introduces, task DAG, uncertainty |
 | `verification.md` | the approver / QA | test plan, results, review findings on the written code, residual risk |
 | `tasks/TASK-NNN.md` | the reviewer | task purpose, boundary, verification, result |
 | `details/*.md` | anyone who needs to dig | code evidence, research, diagrams |
@@ -68,8 +68,8 @@ behind the pack. `hr templates update` refreshes only files that weren't customi
 ## Document quality gate
 
 1. `hr doc-check` (structural): required `hr:*` blocks present, minimum number of sections, no `[FILL: ...]`
-   placeholders, no broken relative links, valid Mermaid openings and balanced brackets, a diagram where one is required, no raw-log dumps,
+   placeholders, no broken relative links, valid Mermaid openings and balanced brackets, a diagram where one is required, at L2 and L3 a non-empty list of what the design introduces in `design.md` (marked by the line `<!-- hr:introduces -->` under its heading), no raw-log dumps,
    and length budgets for L0/L1/overview. These checks are language-agnostic. It also scans documents and
    plan text for filler wording ([writing](writing.md)); a hit is an error.
 2. Independent review (`hr-plan-reviewer`) for approval documents: clarity, duplication, actionability,
-   wording, and whether the text matches the evidence.
+   wording, whether the text matches the evidence, and whether each new part has a requirement behind it.

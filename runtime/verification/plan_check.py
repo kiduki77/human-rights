@@ -105,7 +105,11 @@ def check_plan(req: Dict[str, Any], graph: Dict[str, Any], plan: Dict[str, Any],
             if r not in req_ids:
                 hard.append(f"{tid}: references unknown requirement {r}")
         if not t.get("requirement_ids"):
-            warn.append(f"{tid}: not linked to any requirement (check its user value / system responsibility)")
+            if strict:
+                hard.append(f"{tid}: not linked to any requirement - at {mode} a task nothing asks for is refused; "
+                            "link it to the requirement it serves, or remove it")
+            else:
+                warn.append(f"{tid}: not linked to any requirement (check its user value / system responsibility)")
         if t.get("status", "planned") not in TASK_STATUSES:
             hard.append(f"{tid}: unknown status {t.get('status')!r}")
         if strict and not isinstance(t.get("changes_flow"), bool):

@@ -61,3 +61,22 @@ class PlanCheckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnlinkedTaskTest(unittest.TestCase):
+    def setUp(self):
+        self.req, self.graph, self.plan = load()
+        self.graph["tasks"][3]["requirement_ids"] = []
+
+    def test_a_task_without_a_requirement_is_refused_at_l2_and_l3(self):
+        for mode in ("L2", "L3"):
+            res = check_plan(self.req, self.graph, self.plan, mode)
+            self.assertFalse(res["ok"], mode)
+            self.assertTrue(any("TASK-004: not linked to any requirement" in h for h in res["hard_fail"]), mode)
+            self.assertFalse(any("not linked to any requirement" in w for w in res["warnings"]), mode)
+
+    def test_it_stays_a_warning_at_l0_and_l1(self):
+        for mode in ("L0", "L1"):
+            res = check_plan(self.req, self.graph, self.plan, mode)
+            self.assertFalse(any("not linked to any requirement" in h for h in res["hard_fail"]), mode)
+            self.assertTrue(any("TASK-004: not linked to any requirement" in w for w in res["warnings"]), mode)

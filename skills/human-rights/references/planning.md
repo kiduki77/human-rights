@@ -7,6 +7,11 @@
 - Task DAG and change boundaries (`hr render` fills the `<!-- hr:tasks -->` block)
 - Per-task verification plus the **feature-level integration test plan** (`verification.md`)
 - Choices a human must make before implementation
+- **What the design introduces**: every new module, layer or dependency, each with the requirement behind
+  it, the existing thing in the repository that was considered, and why it was not used. "Nothing new" is a
+  valid answer. The default is the smallest safe change to the existing structure, and this list is where
+  a departure from it is argued. At L2 and L3 `hr doc-check` fails when the section is missing or empty:
+  it looks for the line `<!-- hr:introduces -->` under the section heading, in any language.
 - **A diagram of what changes** whenever the change crosses a module or process boundary, or any task
   changes a flow: a sequence diagram for calls across boundaries, a state diagram for changed states, or a
   before/after component diagram. `hr doc-check` fails without one. A reviewer reads a picture faster than
@@ -21,6 +26,8 @@ Each task has `id`, `title`, `purpose`, `responsibility`, `depends_on`, `require
 `verification` (test ids), `risk`, and `human_review`.
 
 - One cohesive change responsibility, whose completion can be judged on its own.
+- Every task serves a requirement: list it in `requirement_ids`. A task nothing asks for is a warning at
+  L0 and L1, and a hard fail at L2 and L3. Link it to the requirement it serves or remove it.
 - Don't split by file count or line count. Don't over-split inseparable changes such as shared state,
   interfaces, or DB schemas.
 - Use `depends_on` to make tasks that build a data model or public API run first.
@@ -109,15 +116,17 @@ Machines first. A human tests only what a machine cannot.
 
 1. `hr plan-check` must report zero hard fails. A hard fail is any of: a missing must requirement, a
    missing verification method, a dependency cycle, a risky policy decided without the user, an
-   unresolved interface conflict, an open blocking or safety question, (L2/L3) no integration test, a
+   unresolved interface conflict, an open blocking or safety question, (L2/L3) a task linked to no
+   requirement, (L2/L3) no integration test, a
    human test without `human_reason`, an agent or human test whose steps lack `expect`, no `regression`
    scope and rationale, a task without `changes_flow`, or (L2/L3) no `impact` in `requirements.json`, an
    impact row without evidence, a `change` row without a task, a `check` row without a real test, or an
    `unrelated` row without a reason ([investigation](investigation.md#impact-other-places-that-use-it)).
    Fix warnings, or record in `design.md` why one stays.
 2. Independent review: give `hr-plan-reviewer` only the feature directory path, not your own conclusions.
-   It reviews requirement coverage, cohesion, verifiability, dependency soundness, reviewability, and
-   integrability. A high auxiliary score never outweighs a hard fail. If the plan falls short, re-decompose
+   It reviews requirement coverage, cohesion, verifiability, dependency soundness, reviewability,
+   integrability, and need: whether each task and each new module, layer or dependency has a requirement
+   behind it, and why what the repository already has is not enough. A high auxiliary score never outweighs a hard fail. If the plan falls short, re-decompose
    and check again.
 3. `hr render`, then `hr doc-check` must pass.
 4. With a design gate (L2 and L3 by default): `hr transition awaiting_design_approval`, then see
