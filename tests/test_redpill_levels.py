@@ -295,6 +295,24 @@ class AuthoredDrillTest(Base):
         self.assertIn("Compare with: REQ-001", out)
         self.assertIn("| existing code |", self.text())
 
+    def test_a_real_task_widened_beyond_the_request_is_hard(self):
+        r = self.r
+        widened = {"op": "mutate", "block": "tasks", "target": "TASK-003", "field": "purpose",
+                   "replacement": "Isolate link failures and reconnect every dropped vehicle on its own",
+                   "against": ["REQ-004"], "difficulty": "hard", "category": "scope_beyond_request",
+                   "why_wrong": "REQ-004 asks that a failure stay contained. Nothing asks for automatic reconnection."}
+        act = self.start("hard", widened)
+        self.assertEqual((act["id"], act["technique"]), ("TASK-003", "mutate:purpose"))
+        self.assertIn("| [TASK-003](tasks/TASK-003.md) | Isolate link failures and reconnect every dropped vehicle on "
+                      "its own |", self.text())
+        graph = json.loads((self.fdir / ".internal" / "task-graph.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(graph["tasks"]), 4, "no task is added")
+        b = json.loads(r.hr("redpill", "brief", "--gate", "design", "--json")[1])
+        self.assertIn("widening a real task's purpose, never by adding a row", b["prompt"])
+        self.assertIn('"field": "purpose"', b["prompt"])
+        final = json.loads(r.hr("redpill", "brief", "--gate", "final", "--json")[1])
+        self.assertNotIn("widening a real task's purpose", final["prompt"])
+
     def test_decision_fields_fit_the_row(self):
         code, out = self.seed({"candidates": [dict(CREDITED, target="ASM-001")] + FILLERS})
         self.assertEqual(code, 2, out)

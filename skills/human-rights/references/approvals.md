@@ -155,7 +155,8 @@ The plant can be in the task table, the verification table, the manual steps, an
 decision and assumption tables. The runtime holds each candidate to its label:
 
 - A hard candidate changes or removes a real row and names in `against` the IDs the reviewer has to compare
-  it with. An added row cannot be hard, because its new ID stands out.
+  it with. An added row cannot be hard, because its new ID stands out. Work nobody asked for is drilled
+  at hard by widening the purpose of a real task instead, and the brief shows that case.
 - A row that differs from the real one by a number only is accepted once per submission, never as hard,
   and is used only when nothing else fits. A reviewer who learns to scan for numbers has not learned to
   review.

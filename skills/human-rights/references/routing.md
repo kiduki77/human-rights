@@ -24,7 +24,7 @@ makes a change look safer than it is. If you are sure, confirm it and send `conf
 - **L0**: every axis 0.
 
 Gates: L2 and L3 require design approval, and L3 also final approval (`routing.design_gate_modes` / `final_gate_modes` in
-`config.yaml`). L2 requires design approval when `architecture` >= 2. Flags force gates as below.
+`config.yaml`). If L2 is taken out of `design_gate_modes`, an L2 change still requires design approval when `architecture` >= `routing.l2_design_gate_min_arch` (2). Flags force gates as below.
 
 ## Flags (`--flags`, comma-separated)
 
