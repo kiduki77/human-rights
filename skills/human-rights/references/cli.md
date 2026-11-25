@@ -57,6 +57,7 @@ refuses a decision that does not run at a terminal (exit `3`).
 | `impact` | anyone | print the impact table: other places that use what this change touches |
 | `impact --recheck --searched a,b [--note]` | agent | record the second search, made from the written code, for the current commit; required before `awaiting_final_approval` at L2/L3 |
 | `render` | agent | refresh the `hr:*` blocks from evidence |
+| `change-size [--json]` | anyone | the size of the change counted from `git diff` (files added, changed and deleted; lines in code and in tests; new dependencies; at L2/L3 the same per task). The text is what the `hr:size` block shows |
 | `doc-check` | agent | document quality gate: structure, links, diagrams, and filler wording in documents and plan text |
 | `check` | anyone | integrity: event chain, schemas, approvals, plan, docs |
 | `log [-n 20]` | anyone | recent events |

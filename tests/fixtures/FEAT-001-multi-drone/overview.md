@@ -25,6 +25,10 @@ Safety decisions confirmed by the user: deselected vehicles keep their mission (
 <!-- hr:tasks:start -->
 <!-- hr:tasks:end -->
 
+## Size of the change
+<!-- hr:size:start -->
+<!-- hr:size:end -->
+
 ## Verification
 <!-- hr:results:start -->
 <!-- hr:results:end -->

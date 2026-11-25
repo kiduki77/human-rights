@@ -50,6 +50,56 @@ A `config.yaml` written before `code_reviewer` existed has no value for it and g
 The main conversation (the planner and coordinator) always runs on the session's own model; pick it with
 `/model`. `hr agents` shows what each sub-agent will run with.
 
+## Size of the change (`size`)
+
+`hr render` fills the `hr:size` block, and `hr change-size` prints it. The runtime counts from `git diff`
+between `state.git.base_sha` (the commit the feature started from) and the commit under approval. At L0 and L1
+the work may be uncommitted, so the count then runs to the working tree and includes untracked files, and the
+block says so. A rename counts as one file deleted and one added. Files under `.human-rights/` are never
+counted. Lines of binary files count as zero.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `size.test_patterns` | see below | Files counted as tests. Their lines go on their own row. A pattern with no `/` matches the file name (`*_test.go`); a pattern with a `/` matches the whole path from the repository root, where `**/` means any directories (`**/tests/**`) |
+| `size.manifests` | see below | Files read for new dependencies. A manifest the runtime has no reader for is listed as changed and not read |
+| `size.lockfiles` | see below | Lock files. Their lines go on a third row so one generated file does not bury the code, and their new packages are counted |
+
+Defaults, by ecosystem:
+
+| Ecosystem | `test_patterns` | `manifests` | `lockfiles` |
+|---|---|---|---|
+| Any | `**/tests/**`, `**/test/**`, `**/__tests__/**`, `**/spec/**` | | |
+| Python | `test_*.py`, `*_test.py`, `conftest.py` | `pyproject.toml`, `requirements*.txt`, `Pipfile` | `poetry.lock`, `uv.lock`, `Pipfile.lock` |
+| JavaScript, TypeScript | `*.test.*`, `*.spec.*` | `package.json` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` |
+| Go | `*_test.go` | `go.mod` | `go.sum` |
+| Rust | `**/tests/**` | `Cargo.toml` | `Cargo.lock` |
+| Java, Kotlin | `*Test.java`, `*Tests.java`, `*Test.kt`, `*Tests.kt` | `pom.xml`, `build.gradle`, `build.gradle.kts` | `gradle.lockfile` |
+| .NET | `*Test.cs`, `*Tests.cs`, `**/*.Tests/**`, `**/*.Test/**` | `*.csproj`, `Directory.Packages.props`, `packages.config` | `packages.lock.json` |
+| PHP, Ruby | | `composer.json`, `Gemfile` | `composer.lock`, `Gemfile.lock` |
+
+A key you set replaces its whole list. Quote patterns that start with `*` in YAML. `pnpm-lock.yaml` and
+`gradle.lockfile` are counted as lock files but not read for packages. Tests written inside the source file
+(Rust `#[cfg(test)]`) count as code.
+
+A dependency is new when its name is in a changed manifest at the commit under approval and not at the starting
+commit. A changed version is not a new dependency. Reading `pyproject.toml` and `Cargo.toml` needs Python 3.11
+or newer (`tomllib`); on older Pythons those two are listed as changed and not read.
+
+Per task (L2 and L3), the numbers come from the task's commits when the runtime has them, and from the task's
+`scope.paths` when it does not. The row says which in its last column:
+
+- **The task's commits.** A task verified in a worktree is counted from the commit its worktree branch started at
+  to the commit that was verified. A task verified on the integration branch is counted from the nearest earlier
+  recorded commit (the feature's starting commit, another task's verified commit, or the merge of a worktree
+  task) to its own verified commit.
+- **Files under the task's paths.** Used when the task is not verified, its commit is not in the history of the
+  current code, or the range cannot be diffed. The runtime takes the files of the whole diff that match
+  `scope.paths`. It cannot see stray changes outside the paths, or the lines of an earlier task in the same file.
+- **No paths recorded.** The row is empty.
+
+A file that two tasks changed is counted in both rows, so the rows can add up to more than the total. The row
+"Not in any task" lists what the whole diff changed outside every task's files.
+
 ## Floor
 
 Paths that always need at least a given level are not in `config.yaml`. They are in

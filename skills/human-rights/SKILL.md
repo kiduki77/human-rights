@@ -164,7 +164,8 @@ Full rules: [splitting](references/splitting.md).
    `hr verify --adhoc "<build / lint / related test command>" --title "<what>"`. For UI, check in a
    browser when you can and note the screenshot path.
 4. `hr transition verifying_tasks`, then `hr transition completed`
-5. Write a 5-10 line `overview.md` in the format of `templates/l0-summary.md`. Give the same summary in chat.
+5. Write a 5-10 line `overview.md` in the format of `templates/l0-summary.md`, run `hr render` so the size
+   line is filled from the diff, and give the same summary in chat, with the size line as rendered.
 6. Commits and PRs follow the repository settings and the user's instructions.
 
 ### L1 Focused: short plan, targeted verification
@@ -172,7 +173,7 @@ Full rules: [splitting](references/splitting.md).
 Same as L0, except: before implementing, show a 3-6 line plan in chat (what, where, how it will be
 verified) and pick the targeted test up front. If `hr` requires no gate, proceed without approval. If the
 behaviour had no test, prefer adding a regression test. The completion report in `overview.md` is 15-40
-lines.
+lines, and its size line comes from `hr render`, as at L0.
 
 ### L2 Planned / L3 Governed: plan, approve, integrate
 
@@ -217,6 +218,8 @@ lines.
   the human must make**. Raw logs and file lists go to `details/` with a link. The standard is in
   [documents](references/documents.md).
 - Never type result tables yourself. `hr render` fills the `<!-- hr:results -->` blocks from evidence.
+- Never type the size of the change. `hr render` fills the `<!-- hr:size -->` block from `git diff`, and
+  `hr change-size` prints the same text for chat.
 - When you ask for approval, show only what the decision needs and say how to answer in chat. See
   [approvals](references/approvals.md).
 - Start documents with `hr scaffold` (it uses the repo's `.human-rights/templates/` first, then the plugin's,

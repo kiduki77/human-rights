@@ -1007,6 +1007,17 @@ def cmd_render(ws: Workspace, args) -> int:
     return 0
 
 
+def cmd_change_size(ws: Workspace, args) -> int:
+    from runtime import docs, size
+
+    f = _feature(ws, args)
+    if args.json:
+        _print_json(size.measure(f))
+    else:
+        print(docs.size_block(f))
+    return 0
+
+
 def cmd_doc_check(ws: Workspace, args) -> int:
     from runtime import docs
 
@@ -1596,6 +1607,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--task")
     sp.add_argument("--reason", required=True)
     add("render", cmd_render, "refresh hr:* blocks in human docs from evidence")
+    sp = add("change-size", cmd_change_size, "size of the change from git diff: files, lines, tests, new dependencies, per task")
+    sp.add_argument("--json", action="store_true")
     add("doc-check", cmd_doc_check, "document quality gate (structural checks)")
     add("check", cmd_check, "integrity check (event chain, schema, approvals, plan, docs)")
     sp = add("log", cmd_log, "recent events")

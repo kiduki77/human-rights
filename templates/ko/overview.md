@@ -22,6 +22,10 @@
 <!-- hr:impact:start -->
 <!-- hr:impact:end -->
 
+## 변경 규모
+<!-- hr:size:start -->
+<!-- hr:size:end -->
+
 ## 검증
 <!-- hr:results:start -->
 <!-- hr:results:end -->

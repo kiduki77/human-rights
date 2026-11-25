@@ -22,6 +22,10 @@
 <!-- hr:impact:start -->
 <!-- hr:impact:end -->
 
+## Size of the change
+<!-- hr:size:start -->
+<!-- hr:size:end -->
+
 ## Verification
 <!-- hr:results:start -->
 <!-- hr:results:end -->

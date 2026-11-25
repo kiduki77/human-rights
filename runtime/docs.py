@@ -269,6 +269,62 @@ def review_block(feature: Feature) -> str:
     return "\n".join(lines)
 
 
+def _names_line(items: List[Dict[str, str]]) -> str:
+    return ", ".join(f"`{_cell(x['name'])}` ({_cell(x['file'])})" for x in items)
+
+
+def _size_cells(row: Dict[str, int]) -> List[str]:
+    return [str(row["added"]), str(row["changed"]), str(row["deleted"]), f"+{row['plus']}", f"-{row['minus']}"]
+
+
+def size_block(feature: Feature) -> str:
+    from runtime import size
+
+    lang = lang_of(feature.ws)
+    data = size.measure(feature)
+    if data is None:
+        return t(lang, "size_unavailable")
+    total, deps = data["total"], data["dependencies"]
+    if not any(total[c][k] for c in size.KINDS for k in ("added", "changed", "deleted")):
+        return t(lang, "size_empty", base=data["base"][:10])
+    flat = {k: sum(total[c][k] for c in ("code", "tests", "locks")) for k in ("added", "changed", "deleted")}
+    dep_line = t(lang, "size_deps_new", names=_names_line(deps["added"])) if deps["added"] else t(lang, "size_deps_none")
+    if deps["removed"]:
+        dep_line += " " + t(lang, "size_deps_removed", names=_names_line(deps["removed"]))
+    if deps["locked"]:
+        dep_line += " " + t(lang, "size_deps_locked", n=deps["locked"])
+    if deps["unread"]:
+        dep_line += " " + t(lang, "size_deps_unread", files=", ".join(f"`{_cell(x)}`" for x in deps["unread"]))
+    if feature.state().get("mode") in ("L0", "L1"):
+        files = sum(flat.values())
+        line = t(lang, "size_line", files=files, added=flat["added"], changed=flat["changed"], deleted=flat["deleted"],
+                 cp=total["code"]["plus"], cm=total["code"]["minus"], tp=total["tests"]["plus"],
+                 tm=total["tests"]["minus"])
+        return line + " " + dep_line
+    key = "size_range_dirty" if data["uncommitted"] else "size_range"
+    lines = [t(lang, key, base=data["base"][:10], head=data["head"][:10]), ""]
+    head = [t(lang, k) for k in ("size_kind", "size_files_added", "size_files_changed", "size_files_deleted",
+                                 "size_lines_added", "size_lines_removed")]
+    lines += ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for kind in size.KINDS:
+        if kind != "locks" or any(total[kind][k] for k in ("added", "changed", "deleted")):
+            lines.append("| " + " | ".join([t(lang, "size_" + kind)] + _size_cells(total[kind])) + " |")
+    lines += ["", dep_line]
+    if data["tasks"]:
+        head = [t(lang, k) for k in ("task", "purpose", "size_task_files", "size_task_code", "size_task_tests", "size_basis")]
+        lines += ["", "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+        rows = [(x["id"], x["purpose"], x["size"], value(lang, "size_basis", x["basis"])) for x in data["tasks"]]
+        if data["outside"]:
+            rows.append(("-", t(lang, "size_outside"), data["outside"], "-"))
+        for tid, purpose, sz, basis in rows:
+            fl = " / ".join(str(sum(sz[c][k] for c in ("code", "tests", "locks"))) for k in ("added", "changed", "deleted"))
+            lines.append(f"| {tid} | {_cell(purpose)} | {fl} | +{sz['code']['plus']} / -{sz['code']['minus']} | "
+                         f"+{sz['tests']['plus']} / -{sz['tests']['minus']} | {basis} |")
+        if data["overlap"]:
+            lines += ["", t(lang, "size_overlap")]
+    return "\n".join(lines)
+
+
 def _duration(lang: str, seconds: Any) -> str:
     try:
         s = float(seconds)
@@ -439,9 +495,10 @@ def render(feature: Feature) -> List[str]:
     blocks = {
         "overview.md": {"status": status_block, "tasks": tasks_block, "impact": impact_block, "results": results_block,
                         "decisions": decisions_block, "features": features_block, "shared": shared_block,
-                        "excluded": excluded_block, "steps": steps_block, "review": review_block},
+                        "excluded": excluded_block, "steps": steps_block, "review": review_block,
+                        "size": size_block},
         "verification.md": {"results": results_block, "status": status_block, "steps": steps_block,
-                            "review": review_block},
+                            "review": review_block, "size": size_block},
         "design.md": {"tasks": tasks_block, "impact": impact_block},
     }
     for fname, mapping in blocks.items():

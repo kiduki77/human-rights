@@ -8,6 +8,10 @@
 ## Why this design
 [FILL: the chosen approach and its key rationale, with a one-line comparison to the alternative]
 
+## Size of the change
+<!-- hr:size:start -->
+<!-- hr:size:end -->
+
 ## Verification
 <!-- hr:results:start -->
 <!-- hr:results:end -->
