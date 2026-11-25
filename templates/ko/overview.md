@@ -6,6 +6,10 @@
 <!-- hr:status:start -->
 <!-- hr:status:end -->
 
+## 자세히 읽을 곳
+<!-- hr:focus:start -->
+<!-- hr:focus:end -->
+
 ## 무엇이 왜 바뀌나
 [FILL: 최대 3문장: 사용자의 문제, 바뀌는 것, 일부러 바꾸지 않는 것]
 

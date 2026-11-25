@@ -20,6 +20,10 @@ STRUCTURE = {
     "design.md": {"blocks": ["tasks", "impact"], "min_sections": 3},
     "verification.md": {"blocks": ["results", "steps", "review"], "min_sections": 2},
 }
+CELL_SPLIT = re.compile(r"(?<!\\)\|")
+ROW_ID = re.compile(r"\[?([A-Za-z]+-\d+)")
+FOCUS_MAX = 7
+FOCUS_RANK = {"flag": 0, "changed": 1, "task": 2, "assumed_high": 3, "not_user": 4, "assumed_medium": 5}
 MERMAID_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.S)
 MERMAID_KINDS = ("flowchart", "graph", "sequenceDiagram", "stateDiagram", "stateDiagram-v2", "classDiagram",
                  "erDiagram", "gantt", "journey", "timeline", "mindmap")
@@ -370,6 +374,66 @@ def _decision_tables(lang: str, decisions: List[Dict[str, Any]], assumptions: Li
     return "\n".join(out).rstrip()
 
 
+def _rows(text: str) -> List[List[str]]:
+    return [[c.strip() for c in CELL_SPLIT.split(l)[1:-1]] for l in text.split("\n") if l.startswith("|")]
+
+
+def _shown_block(text: str, name: str) -> str:
+    m = re.search(BLOCK_RE.format(name=re.escape(name)), text, re.S)
+    return m.group(0) if m else ""
+
+
+def _raw(lang: str, kind: str, label: str, options: Any) -> str:
+    return next((k for k in options if value(lang, kind, k) == label), label)
+
+
+def _clip(text: str, n: int = 60) -> str:
+    return text if len(text) <= n else text[: n - 3].rstrip() + "..."
+
+
+def focus_block(feature: Feature, text: str) -> str:
+    from runtime.routing.router import ALL_FLAGS
+
+    lang = lang_of(feature.ws)
+    cap = int(feature.ws.config().get("docs", {}).get("focus_max", FOCUS_MAX))
+    found: Dict[str, Dict[str, Any]] = {}
+
+    def add(kind: str, cell: str, title: str, reason: str) -> None:
+        m = ROW_ID.match(cell)
+        if not m:
+            return
+        item = found.setdefault(m.group(1), {"rank": FOCUS_RANK[kind], "title": title, "why": []})
+        item["rank"] = min(item["rank"], FOCUS_RANK[kind])
+        item["why"].append(reason)
+
+    for row in _rows(_shown_block(text, "tasks")):
+        if len(row) == 5 and _raw(lang, "risk", row[3], ("high",)) == "high":
+            add("task", row[0], row[1], t(lang, "focus_task", risk=value(lang, "risk", "high")))
+    for row in _rows(_shown_block(text, "decisions")):
+        if len(row) == 5:
+            add("changed", row[0], row[1], t(lang, "focus_changed"))
+        elif len(row) == 4:
+            who = _raw(lang, "decided_by", row[3], ("user", "default", "code", "group"))
+            if who != "user":
+                add("not_user", row[0], row[1], t(lang, "focus_not_user", who=row[3]))
+        elif len(row) == 3:
+            risk = _raw(lang, "risk", row[2], ("medium", "high"))
+            if risk in ("medium", "high"):
+                add("assumed_" + risk, row[0], row[1], t(lang, "focus_assumed", risk=row[2]))
+    flags = (feature.state().get("routing") or {}).get("flags") or []
+    lines = [f"- `{f}` ({value(lang, 'flag', f)}): {t(lang, 'focus_flag')}" for f in ALL_FLAGS if f in flags]
+    ranked = sorted(found.items(), key=lambda kv: kv[1]["rank"])
+    total = len(lines) + len(ranked)
+    if not total:
+        return t(lang, "focus_none")
+    for rid, item in ranked:
+        lines.append(f"- **{rid}** {_clip(item['title'])}: {'; '.join(item['why'])}")
+    out = [t(lang, "focus_intro"), ""] + lines[:cap]
+    if total > cap:
+        out += ["", t(lang, "focus_more", n=total - cap)]
+    return "\n".join(out)
+
+
 def render(feature: Feature) -> List[str]:
     updated = []
     blocks = {
@@ -389,6 +453,8 @@ def render(feature: Feature) -> List[str]:
         for name, fn in mapping.items():
             if f"<!-- hr:{name}:start -->" in new:
                 new = _replace_block(new, name, redpill.inject(feature, fname, name, fn(feature)))
+        if fname == "overview.md" and "<!-- hr:focus:start -->" in new:
+            new = _replace_block(new, "focus", focus_block(feature, new))
         if new != text:
             write_text_atomic(path, new)
             updated.append(fname)

@@ -58,6 +58,15 @@ TEXT: Dict[str, Dict[str, str]] = {
         "decide_merge": "merge (auto-merge is off by default): pass `hr merge-check`, then merge the PR",
         "task_none": "none", "task_not_run": "not run", "task_not_implemented": "Not implemented yet.",
         "task_boundary": "{paths}. Anything outside goes back through `hr scope-change`.",
+        "focus_intro": "Read these rows closely. Each is listed for the reason shown, not because it is wrong.",
+        "focus_flag": "what does approving this let happen?",
+        "focus_not_user": "not decided by you ({who})",
+        "focus_changed": "differs from what you answered",
+        "focus_assumed": "assumed for you, {risk} risk",
+        "focus_task": "{risk} risk task",
+        "focus_more": "{n} more rows match and are not listed here. They are in the tables below.",
+        "focus_none": "No row below is decided by someone other than you, assumed at medium or high risk, or a "
+                      "high-risk task, and no routing flag is set.",
     },
     "ko": {
         "item": "항목", "value": "값", "state": "상태", "mode": "모드", "unclassified": "미분류",
@@ -110,6 +119,15 @@ TEXT: Dict[str, Dict[str, str]] = {
         "decide_merge": "머지 (자동 머지는 기본으로 꺼져 있음): `hr merge-check` 통과 후 PR을 머지하세요",
         "task_none": "없음", "task_not_run": "미실행", "task_not_implemented": "아직 구현하지 않음.",
         "task_boundary": "{paths}. 그 밖은 `hr scope-change` 로 다시 승인.",
+        "focus_intro": "아래 행은 자세히 읽어 주세요. 틀려서가 아니라, 적힌 이유 때문에 올린 것입니다.",
+        "focus_flag": "이것을 승인하면 무엇이 가능해지나요?",
+        "focus_not_user": "직접 결정하지 않으심 ({who})",
+        "focus_changed": "답변하신 내용과 다름",
+        "focus_assumed": "대신 가정함, 위험 {risk}",
+        "focus_task": "위험 {risk} 작업",
+        "focus_more": "조건에 맞는 행 {n}개는 여기에 싣지 않았습니다. 아래 표에 있습니다.",
+        "focus_none": "아래 표에는 사용자가 아닌 쪽이 결정한 것, 위험 보통 이상으로 가정한 것, 위험 높음 작업이 없고 "
+                      "라우팅 플래그도 없습니다.",
     },
 }
 
@@ -133,12 +151,18 @@ VALUES_KO = {
     "finding_kind": {"unexplained": "요청한 적 없음", "duplicate": "이미 있는 코드", "unused": "쓰는 곳 없음"},
     "decided_by": {"user": "사용자", "default": "제안 기본값", "code": "기존 코드", "group": "묶음 결정"},
     "code_status": {"missing": "없음", "partial": "일부 있음", "exists": "이미 있음", "conflict": "충돌"},
+    "flag": {"physical_safety": "물리적 안전에 영향", "vehicle_command": "기체 명령 대상 또는 비행 제어 변경",
+             "auth": "인증·권한 변경", "secrets": "비밀 값 처리", "destructive_migration": "데이터를 지우는 마이그레이션",
+             "irreversible_external": "되돌릴 수 없는 외부 작업"},
 }
 VALUES_EN = {
     "relation": {"change": "changed", "check": "checked, not changed", "unrelated": "not affected"},
     "finding_kind": {"unexplained": "nothing asks for it", "duplicate": "already exists", "unused": "nothing uses it"},
     "runner": {"command": "script", "agent": "agent", "human": "human"},
     "decided_by": {"user": "you", "default": "proposed default", "code": "existing code", "group": "group decision"},
+    "flag": {"physical_safety": "physical safety impact", "vehicle_command": "vehicle command targeting or flight control",
+             "auth": "authentication or authorization", "secrets": "secret handling",
+             "destructive_migration": "destructive data migration", "irreversible_external": "irreversible external action"},
 }
 
 MARKS = {

@@ -31,9 +31,18 @@ and how often the reviewer has to ask again, not by how thorough they look.
   answered, record the decision with `overrides_user_answer` and `reason`. The decisions block shows it at
   the top under a warning. Never leave it in a parenthesis.
 - **Review material is behaviour.** Keep code expressions out of `overview.md` and `design.md`.
-- Never type result, step, or decision tables by hand. Keep the `<!-- hr:status -->`, `<!-- hr:tasks -->`,
-  `<!-- hr:results -->`, `<!-- hr:steps -->` and `<!-- hr:decisions -->` blocks from the templates and run
-  `hr render`. The results table shows, per test, who runs it, its pass criteria, and its estimated time.
+- **The runtime points at the rows to read closely.** The `<!-- hr:focus -->` block, right under the status
+  table, lists decisions made by someone other than the user, decisions that differ from the user's answer,
+  assumptions at medium or high risk, tasks at high risk, and each routing flag with the question "what does
+  approving this let happen?". Each line names the ID and the reason. It is a pointer: a listed row is not
+  said to be wrong. It holds at most `docs.focus_max` lines (default 7), highest risk first, and counts the
+  rest. It is built from the rendered task and decision tables, never from the plan files (see
+  [approvals](approvals.md#red-pill-mode-review-vigilance-drills)). A template that has no focus block still
+  renders. Don't write the list yourself; in the "Decision needed" section, say in words the 2-3 things you
+  think matter most.
+- Never type result, step, or decision tables by hand. Keep the `<!-- hr:status -->`, `<!-- hr:focus -->`,
+  `<!-- hr:tasks -->`, `<!-- hr:results -->`, `<!-- hr:steps -->` and `<!-- hr:decisions -->` blocks from the
+  templates and run `hr render`. The results table shows, per test, who runs it, its pass criteria, and its estimated time.
 - Write in `docs.language` (config), or in the user's language if they ask. Keep IDs, commands and markers as is.
 
 ## Templates

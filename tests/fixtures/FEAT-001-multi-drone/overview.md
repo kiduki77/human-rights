@@ -6,6 +6,10 @@ Replace the GCS's single global connection with per-vehicle sessions, so up to 4
 <!-- hr:status:start -->
 <!-- hr:status:end -->
 
+## Read closely
+<!-- hr:focus:start -->
+<!-- hr:focus:end -->
+
 ## What changes and why
 Operators today must reconnect to switch vehicles, which loses telemetry from the others. This change keeps up to 4 links open and routes every command through one explicitly selected vehicle. Swarm commands and collision avoidance are out of scope.
 

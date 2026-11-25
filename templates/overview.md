@@ -6,6 +6,10 @@
 <!-- hr:status:start -->
 <!-- hr:status:end -->
 
+## Read closely
+<!-- hr:focus:start -->
+<!-- hr:focus:end -->
+
 ## What changes and why
 [FILL: at most 3 sentences: the user's problem, what changes, what deliberately does not]
 
