@@ -80,6 +80,23 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   an approval. The reviewer does not edit code, and no agent simplifies code on its own: that would produce
   changes nobody approved. Findings live in `findings.json` with a `source` field, so the tester's findings
   can use the same outcomes later.
+- **Tester findings use the same file, the same list and the same gate as code review findings.** The
+  tester's `findings` used to be printed once by `hr record-agent`, so the agent that built the change decided
+  whether the human heard about a defect in it. Now each one becomes an `FND-NNN` row with `source: tester`
+  and the test, run and commit that found it. `verification.md` shows it under its test, and the `hr:review`
+  block lists it with the code review findings. That block is the one list of all findings of the feature,
+  and `review-report.md` stays as it was, because the approval request pastes the table from
+  `verification.md`. Final approval is refused while any finding has no disposition. The code review rows
+  keep their own refusal text. The disposition is `fixed`, accepted as a risk or not a defect. Accepting
+  a risk (`hr finding accept`) and calling it not a defect (`hr finding dismiss`) are human decisions with
+  the same quote check as an approval. "Fixed" is the agent's, with three checks by the runtime: the commit
+  exists and descends from the commit the finding was found on, and a later clean run of the same test that
+  passed re-checked the finding and no longer saw it. A test that passes its steps proves nothing about a
+  defect outside them, so the tester gets the open findings in its brief and reports `present` for each,
+  with an evidence file when the answer is no. The runtime cannot tell who wrote that report, as with every
+  agent test. A finding reported again after a fix is a new row. A finding identical to one that is open,
+  accepted or not a defect adds no row. Not done: a disposition for tester findings before `completed` at L0
+  and L1, which have no final approval.
 - **The floor carries a record of the owner's last decision.** The hook that keeps the agent away from
   `floor.yaml` reads the text of a command, and text cannot cover every way a shell changes a file. So the
   runtime checks the result instead of the command: `hr floor add|remove|accept` write a hash of the rules to

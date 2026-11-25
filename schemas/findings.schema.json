@@ -61,7 +61,10 @@
             "pattern": "^FND-\\d+"
           },
           "source": {
-            "type": "string"
+            "enum": [
+              "code-review",
+              "tester"
+            ]
           },
           "review": {
             "type": "string"
@@ -101,7 +104,9 @@
                 "enum": [
                   "removed",
                   "reported_again",
-                  "accepted"
+                  "accepted",
+                  "fixed",
+                  "not_defect"
                 ]
               },
               "at": {
@@ -115,6 +120,12 @@
               },
               "reason": {
                 "type": "string"
+              },
+              "commit_sha": {
+                "type": "string"
+              },
+              "run": {
+                "type": "string"
               }
             },
             "required": [
@@ -122,16 +133,58 @@
               "at",
               "by"
             ]
+          },
+          "test": {
+            "type": "string"
+          },
+          "run": {
+            "type": "string"
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "id",
           "source",
-          "kind",
-          "file",
-          "lines",
           "what",
           "disposition"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "code-review"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "kind",
+                "file",
+                "lines"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "tester"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "test",
+                "run"
+              ]
+            }
+          }
         ]
       }
     }

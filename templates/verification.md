@@ -14,8 +14,8 @@ Each step passes only if the stated result is observed. An agent attaches eviden
 <!-- hr:steps:start -->
 <!-- hr:steps:end -->
 
-## Review of the written code
-Before final approval, an agent that did not write the code reads the diff against the requirements and the design. It reports changes nothing asks for, repeated code and unused code.
+## Findings: review of the written code and tester findings
+Before final approval, an agent that did not write the code reads the diff against the requirements and the design. It reports changes nothing asks for, repeated code and unused code. Findings the tester reports are listed here too. Each finding needs a decision before final approval.
 
 <!-- hr:review:start -->
 <!-- hr:review:end -->

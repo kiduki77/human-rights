@@ -128,7 +128,47 @@ def evidence_dir(feature: Feature, test_id: str) -> Path:
     return feature.dir / "evidence" / test_id
 
 
+def _attach(feature: Feature, base: Path, label: str, raw: Any) -> Any:
+    ev = str(raw or "").strip()
+    if not ev:
+        return "", None
+    p = (feature.ws.root / ev).resolve() if not Path(ev).is_absolute() else Path(ev).resolve()
+    if base not in p.parents or not p.is_file() or p.stat().st_size == 0:
+        raise HRError(f"{label}: evidence must be a non-empty file under "
+                      f"{base.relative_to(feature.ws.root).as_posix()}/ (got {ev})")
+    return p.relative_to(feature.ws.root).as_posix(), sha256_bytes(p.read_bytes())
+
+
+def _rechecks(feature: Feature, test: Dict[str, Any], base: Path, raw: Any) -> List[Dict[str, Any]]:
+    from runtime import review
+
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise HRError(f"{test['id']}: `rechecked` must be a list")
+    waiting = {x["id"] for x in review.recheckable(feature, test["id"])}
+    out = []
+    for i, c in enumerate(raw, 1):
+        label = f"{test['id']} rechecked {i}"
+        fid = str(c.get("finding") or "").strip().upper() if isinstance(c, dict) else ""
+        if fid not in waiting:
+            raise HRError(f"{label}: `finding` must be a finding of {test['id']} with no disposition "
+                          f"({', '.join(sorted(waiting)) or 'none'})")
+        if not isinstance(c.get("present"), bool):
+            raise HRError(f"{label}: `present` must be true or false")
+        observed = str(c.get("observed") or "").strip()
+        if not observed:
+            raise HRError(f"{label}: `observed` is required (what was actually seen)")
+        ev, sha = _attach(feature, base, label, c.get("evidence"))
+        if not ev and not c["present"]:
+            raise HRError(f"{label}: a finding reported gone needs an evidence file")
+        out.append({"finding": fid, "present": c["present"], "observed": observed, "evidence": ev or None,
+                    "evidence_sha256": sha})
+    return out
+
+
 def record_agent(feature: Feature, test: Dict[str, Any], report: Dict[str, Any], max_retries: int) -> Dict[str, Any]:
+    from runtime import review
     from runtime.verification import failures as fail_mod
 
     steps = test.get("steps") or []
@@ -144,20 +184,13 @@ def record_agent(feature: Feature, test: Dict[str, Any], report: Dict[str, Any],
         observed = str(res.get("observed") or "").strip()
         if not observed:
             raise HRError(f"{test['id']} step {i}: `observed` is required (what was actually seen)")
-        ev = str(res.get("evidence") or "").strip()
-        sha = None
-        if ev:
-            p = (feature.ws.root / ev).resolve() if not Path(ev).is_absolute() else Path(ev).resolve()
-            if base not in p.parents or not p.is_file() or p.stat().st_size == 0:
-                raise HRError(f"{test['id']} step {i}: evidence must be a non-empty file under "
-                              f"{base.relative_to(feature.ws.root).as_posix()}/ (got {ev})")
-            sha = sha256_bytes(p.read_bytes())
-            ev = p.relative_to(feature.ws.root).as_posix()
-        elif status == "passed":
+        ev, sha = _attach(feature, base, f"{test['id']} step {i}", res.get("evidence"))
+        if not ev and status == "passed":
             raise HRError(f"{test['id']} step {i}: a passed step needs an evidence file (screenshot, recording, log)")
         results.append({"n": i, "do": plan_step.get("do"), "expect": plan_step.get("expect"), "status": status,
                         "observed": observed, "evidence": ev or None, "evidence_sha256": sha})
     passed = all(r["status"] == "passed" for r in results)
+    rechecked = _rechecks(feature, test, base, report.get("rechecked"))
     fp = fingerprint(feature.ws.root)
     run = {
         "run_id": _next_id("RUN", feature.test_results().get("runs", [])),
@@ -170,11 +203,13 @@ def record_agent(feature: Feature, test: Dict[str, Any], report: Dict[str, Any],
         "environment": test.get("environment") or "agent",
         "recorded_by": f"agent:{report.get('by') or 'hr-tester'}",
         "steps": results,
-        "findings": [str(x) for x in (report.get("findings") or [])],
+        "findings": [t for t in (str(x).strip() for x in (report.get("findings") or [])) if t],
+        "rechecked": rechecked,
         "evidence": base.relative_to(feature.ws.root).as_posix(),
         "started_at": report.get("started_at") or now(),
         "finished_at": now(),
     }
+    run["finding_ids"] = review.record_tester(feature, test, run)
     _record(feature, run)
     if run["dirty"]:
         return run

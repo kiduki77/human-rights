@@ -698,6 +698,7 @@ def _agent_test(f: Feature, test_id: str) -> Dict[str, Any]:
 
 
 def cmd_test_brief(ws: Workspace, args) -> int:
+    from runtime import review
     from runtime.config import agent_settings
     from runtime.verification import runner
 
@@ -708,6 +709,12 @@ def cmd_test_brief(ws: Workspace, args) -> int:
     rel = ev_dir.relative_to(ws.root).as_posix()
     steps = "\n".join(f"  {i}. DO: {s.get('do')}\n     PASS ONLY IF: {s.get('expect')}"
                       for i, s in enumerate(test.get("steps") or [], 1))
+    waiting = review.recheckable(f, test["id"])
+    recheck = ("\n\nEarlier findings of this test have no disposition yet. After the steps, check each one again in "
+               "the running product and add to report.json:\n"
+               '  "rechecked": [{"finding": "<FND-id>", "present": true|false, "observed": "<what you saw>", '
+               '"evidence": "<path of the evidence file, required when present is false>"}]\n'
+               "Findings to check:\n" + "\n".join(f"  {x['id']}: {x['what']}" for x in waiting)) if waiting else ""
     prompt = (
         f"You are hr-tester. Run {test['id']} \"{test.get('title', '')}\" for feature {f.id}.\n"
         f"Repository root: {ws.root}\n"
@@ -721,6 +728,7 @@ def cmd_test_brief(ws: Workspace, args) -> int:
         '"evidence": "<path of the evidence file>"}, ...], "findings": ["<anything wrong you noticed outside the steps>"]}\n'
         "One entry per step, same order. Report what you saw, not what should have happened. If a step cannot be "
         "performed, mark it failed and say why. Do not edit code, do not fix anything, do not run hr."
+        + recheck
     )
     out = {"test_id": test["id"], "evidence_dir": rel, "report": f"{rel}/report.json", "prompt": prompt,
            "agent": {"subagent_type": "hr-tester", **agent_settings(ws.config())["tester"]["agent_call"]}}
@@ -749,9 +757,14 @@ def cmd_record_agent(ws: Workspace, args) -> int:
     run = runner.record_agent(f, test, report, retries)
     for s in run["steps"]:
         print(f"  step {s['n']}: {s['status']}  expect: {s['expect']}  observed: {s['observed']}")
-    for x in run["findings"]:
-        print(f"  finding: {x}")
+    for fid, x in zip(run["finding_ids"], run["findings"]):
+        print(f"  finding: {x} ({fid})")
+    for c in run["rechecked"]:
+        print(f"  {c['finding']} re-checked: " + ("still there" if c["present"] else "gone") + f" ({c['observed']})")
     print(f"{run['run_id']} {test['id']} = {run['status']} (evidence: {run['evidence']})")
+    if run["finding_ids"]:
+        print("  each finding needs a disposition before final approval: fixed (`hr finding fix`), or the human "
+              "accepts the risk or says it is not a defect (`hr finding accept|dismiss`)")
     if run.get("dirty"):
         print("  ran on uncommitted changes: counts for L0/L1 completion only")
     if run.get("failure"):
@@ -965,24 +978,33 @@ def cmd_finding(ws: Workspace, args) -> int:
     from runtime import human, review
 
     f = _feature(ws, args)
-    if args.action == "accept":
+    if args.action in ("accept", "dismiss"):
         if not args.ids:
-            raise HRError("name the findings to accept: `hr finding accept FND-001 --reason ...`")
+            raise HRError(f"name the findings: `hr finding {args.action} FND-001 --reason ...`")
         who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
         for fid in args.ids:
-            x = review.accept(f, fid, args.reason or "", who["by"], human.proof_fields(who))
-            print(f"{x['id']} accepted by {who['by']} via {who['via']}: {x['disposition']['reason']}")
+            x = getattr(review, args.action)(f, fid, args.reason or "", who["by"], human.proof_fields(who))
+            print(f"{x['id']} {x['disposition']['kind']} by {who['by']} via {who['via']}: {x['disposition']['reason']}")
+        return 0
+    if args.action == "fix":
+        if not args.ids:
+            raise HRError("name the findings: `hr finding fix FND-001 --commit <sha>`")
+        for fid in args.ids:
+            x = review.fix(f, fid, args.commit)
+            d = x["disposition"]
+            print(f"{x['id']} fixed in {d['commit_sha'][:10]}: {d['run']} checked it again and did not see it")
         return 0
     data = review.load(f)
     if args.json:
         _print_json(data)
         return 0
     if not data["findings"]:
-        print("no findings recorded" if data["reviews"] else "no review of the written code is recorded")
+        print("no findings recorded" if data["reviews"] else "no findings and no review of the written code is recorded")
     for x in data["findings"]:
         d = x.get("disposition") or {}
-        tail = d.get("reason") or d.get("review") or ""
-        print(f"{x['id']} [{d.get('kind') or 'open'}{': ' + tail if tail else ''}] {x['kind']} "
+        tail = d.get("reason") or d.get("review") or d.get("run") or ""
+        label = x["source"] if x["source"] == review.TESTER else x["kind"]
+        print(f"{x['id']} [{d.get('kind') or 'open'}{': ' + tail if tail else ''}] {label} "
               f"{review._place(x)} | {x['what']}")
     return 0
 
@@ -1585,10 +1607,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true")
     sp = add("record-review", cmd_record_review, "record the code reviewer's report (every finding needs a changed file and lines)")
     sp.add_argument("--report", help="report.json path (default: evidence/code-review/report.json of the feature)")
-    sp = add("finding", cmd_finding, "[accept is a human decision: --by, or --quote from chat] findings of the code review and what was decided")
-    sp.add_argument("action", nargs="?", choices=("list", "accept"), default="list")
+    sp = add("finding", cmd_finding, "[accept and dismiss are human decisions: --by, or --quote from chat] findings of the code review and the tester, and what was decided")
+    sp.add_argument("action", nargs="?", choices=("list", "accept", "dismiss", "fix"), default="list")
     sp.add_argument("ids", nargs="*", metavar="FND-ID")
-    sp.add_argument("--reason", help="accept: why the human keeps this code")
+    sp.add_argument("--reason", help="accept: why the human keeps this code or accepts this risk. dismiss: why it is not a defect")
+    sp.add_argument("--commit", help="fix: the commit that fixed it (default: HEAD)")
     sp.add_argument("--by")
     sp.add_argument("--quote", help="the human's exact words from their latest chat message")
     sp.add_argument("--json", action="store_true")

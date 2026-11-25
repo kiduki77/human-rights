@@ -238,34 +238,47 @@ def impact_block(feature: Feature) -> str:
     return "\n".join(lines)
 
 
+def _decided(lang: str, x: Dict[str, Any]) -> str:
+    d = x.get("disposition") or {}
+    if not d:
+        return t(lang, "disposition_none")
+    kind = d["kind"]
+    if kind == "accepted":
+        kind = "risk" if x.get("source") == "tester" else "accepted"
+    return t(lang, "disposition_" + kind, who=_cell(d.get("by")), reason=_cell(d.get("reason")),
+             review=d.get("review") or "-", sha=str(d.get("commit_sha") or "-")[:10], run=d.get("run") or "-")
+
+
 def review_block(feature: Feature) -> str:
     from runtime import review
 
     lang = lang_of(feature.ws)
     data = review.load(feature)
+    lines: List[str] = []
     if not data["reviews"]:
-        return t(lang, "no_review")
-    last = data["reviews"][-1]
-    current = last.get("code_tree") == fingerprint(feature.ws.root).get("code_tree")
-    lines = [t(lang, "review_done" if current else "review_stale", id=last["id"], who=_cell(last.get("by")),
-               sha=str(last.get("commit_sha") or "-")[:10], files=len(last.get("files_read") or []),
-               n=len(last.get("findings") or []))]
+        lines.append(t(lang, "no_review"))
+    else:
+        last = data["reviews"][-1]
+        current = last.get("code_tree") == fingerprint(feature.ws.root).get("code_tree")
+        lines.append(t(lang, "review_done" if current else "review_stale", id=last["id"], who=_cell(last.get("by")),
+                       sha=str(last.get("commit_sha") or "-")[:10], files=len(last.get("files_read") or []),
+                       n=len(last.get("findings") or [])))
+        if current and not review._code(data["findings"]):
+            lines.append(t(lang, "review_none"))
     if not data["findings"]:
-        return "\n".join(lines + ([t(lang, "review_none")] if current else []))
+        return "\n".join(lines)
     head = [t(lang, k) for k in ("finding", "impact_where", "review_what", "review_disposition")]
     lines += ["", "| " + " | ".join(head) + " |", "|---|---|---|---|"]
     for x in data["findings"]:
-        what = f"**{value(lang, 'finding_kind', x['kind'])}.** {_cell(x.get('what'))}"
-        if x.get("existing"):
-            what += " (" + t(lang, "review_existing", place=_cell(x["existing"])) + ")"
-        d = x.get("disposition") or {}
-        if not d:
-            decided = t(lang, "disposition_none")
-        elif d["kind"] == "accepted":
-            decided = t(lang, "disposition_accepted", who=_cell(d.get("by")), reason=_cell(d.get("reason")))
+        if x.get("source") == review.TESTER:
+            what = f"**{t(lang, 'tester_found')}.** {_cell(x.get('what'))}"
+            where = f"{x['test']} ({x['run']})"
         else:
-            decided = t(lang, "disposition_" + d["kind"], review=d.get("review") or "-")
-        lines.append(f"| {x['id']} | `{_cell(review._place(x))}` | {what} | {decided} |")
+            what = f"**{value(lang, 'finding_kind', x['kind'])}.** {_cell(x.get('what'))}"
+            if x.get("existing"):
+                what += " (" + t(lang, "review_existing", place=_cell(x["existing"])) + ")"
+            where = review._place(x)
+        lines.append(f"| {x['id']} | `{_cell(where)}` | {what} | {_decided(lang, x)} |")
     return "\n".join(lines)
 
 
@@ -327,6 +340,7 @@ def results_block(feature: Feature) -> str:
 
 
 def steps_block(feature: Feature) -> str:
+    from runtime import review
     from runtime.verification import evidence
 
     lang = lang_of(feature.ws)
@@ -344,6 +358,11 @@ def steps_block(feature: Feature) -> str:
         out += [title, "", f"| # | {t(lang, 'step_do')} | {t(lang, 'step_expect')} |", "|---|---|---|"]
         out += [f"| {i} | {_cell(s.get('do'))} | {_cell(s.get('expect'))} |" for i, s in enumerate(steps, 1)]
         out.append("")
+        found = [y for y in review.load(feature)["findings"] if y.get("source") == review.TESTER and y["test"] == x["id"]]
+        if found:
+            out += [f"**{t(lang, 'test_findings')}**", ""]
+            out += [f"- {y['id']} ({y['run']}): {_cell(y['what'])}. {_decided(lang, y)}" for y in found]
+            out.append("")
     return "\n".join(out).rstrip() or t(lang, "no_steps")
 
 

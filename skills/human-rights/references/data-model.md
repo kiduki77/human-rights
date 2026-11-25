@@ -16,7 +16,7 @@ the same fact into several places.
 | `state.json` | **runtime only** | state, mode, gates, approvals, git/GitHub links |
 | `test-results.json` | **runtime only** | runs: result, commit_sha, code_tree, dirty, log hash |
 | `failures.json` | **runtime only** (classify with `hr failures --classify`) | FAIL-NNN records |
-| `findings.json` | **runtime only** (`hr record-review`, `hr finding accept`) | reviews of the written code (REV-NNN, bound to a commit and code tree) and their findings (FND-NNN: kind, file, lines, outcome) |
+| `findings.json` | **runtime only** (`hr record-review`, `hr record-agent`, `hr finding accept\|dismiss\|fix`) | reviews of the written code (REV-NNN, bound to a commit and code tree) and all findings of the feature (FND-NNN). A `code-review` finding has kind, file and lines. A `tester` finding has the test, the run and the commit that found it. Each has a `disposition`: `removed`, `reported_again`, `accepted`, `fixed` (with the commit and the re-run) or `not_defect` |
 | `events.jsonl` | **runtime only** | hash-chained event log (tamper evidence) |
 | `logs/` | runtime (git-ignored) | raw test output |
 | `../evidence/<TEST-id>/` | `hr-tester` (git-ignored; hashes are kept in `test-results.json`) | per-step evidence and `report.json` of agent tests |

@@ -107,8 +107,9 @@ are unresolved, and at L2 and L3 the written code was reviewed on that commit (s
 2. `hr transition awaiting_final_approval`.
 3. Show: the one-line conclusion; the "read closely" list from the focus block, as rendered; what actually
    changed; the requirement → test → result → evidence table
-   (the rendered block); the review findings table from `verification.md`, pasted as rendered, with a
-   question for each row that has no outcome yet (remove it, or keep it and why); deviations from the plan;
+   (the rendered block); the findings table from `verification.md`, pasted as rendered, with a question for
+   each row that has no outcome yet (a code review finding: remove it, or keep it and why; a tester finding:
+   fix it, accept it as a risk, or is it not a defect); deviations from the plan;
    remaining risks and anything not run; and the verified commit SHA. Commands:
 
 ```
@@ -117,13 +118,19 @@ Final approval needed. Verified commit: 3f2a91c0de (8/8 required tests passing)
   approve:         say so in chat, with any residual risk you accept
   point at items:  tell me which row looks wrong
   review findings: for each one, say "remove it" or "keep it" with the reason
+  tester findings: for each one, say "fix it", "accept the risk" or "not a defect" with the reason
   request changes: tell me what to change
 ```
 
 4. On a change request: `hr reject final --reason "..." --quote "<words>"`, which moves the feature to
    `rework_required`.
    On "keep it" for a review finding: `hr finding accept FND-002 --reason "..." --quote "<words>"`. On
-   "remove it": that is a change request. The runtime refuses the approval while a finding has no outcome.
+   "remove it": that is a change request. On "accept the risk" for a tester finding: the same
+   `hr finding accept FND-004 --reason "..." --quote "<words>"`. On "not a defect":
+   `hr finding dismiss FND-004 --reason "..." --quote "<words>"`. On "fix it": that is a change request,
+   and the agent later records `hr finding fix` once the tester has re-checked it
+   ([integration](integration.md#tester-findings)). The runtime refuses the approval while a finding of
+   either source has no outcome.
    On approval it moves to `ready_to_merge`.
 
 Final approval is bound to the code tree fingerprint. If the code changes after approval, the runtime

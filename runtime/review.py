@@ -10,6 +10,7 @@ from runtime.state.store import Feature
 KINDS = ("unexplained", "duplicate", "unused")
 MODES = ("L2", "L3")
 SOURCE = "code-review"
+TESTER = "tester"
 REVIEWER = "hr-code-reviewer"
 LINES_RE = re.compile(r"\s*(\d+)\s*(?:-\s*(\d+))?\s*")
 PLACE_RE = re.compile(r"^(.*?)(?::\d+(?:\s*-\s*\d+)?)?$")
@@ -51,25 +52,36 @@ def open_findings(feature: Feature) -> List[Dict[str, Any]]:
     return [x for x in load(feature)["findings"] if not x.get("disposition")]
 
 
+def _code(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [x for x in items if x.get("source") == SOURCE]
+
+
+def _tester(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [x for x in items if x.get("source") == TESTER]
+
+
 def problems(feature: Feature, st: Dict[str, Any], dispositions: bool = False) -> List[str]:
-    if st.get("mode") not in MODES:
-        return []
-    fp = fingerprint(feature.ws.root)
-    if not fp.get("git"):
-        return []
     out: List[str] = []
-    last = latest(feature)
-    if not last or last.get("code_tree") != fp.get("code_tree"):
-        why = "the code changed after the last one" if last else "none is recorded"
-        out.append(f"[review] the written code needs a review by an agent that did not write it ({why}). Get the "
-                   f"work order with `hr review-brief`, give it to {REVIEWER}, and record its report with "
-                   "`hr record-review`")
+    fp = fingerprint(feature.ws.root) if st.get("mode") in MODES else {}
+    if fp.get("git"):
+        last = latest(feature)
+        if not last or last.get("code_tree") != fp.get("code_tree"):
+            why = "the code changed after the last one" if last else "none is recorded"
+            out.append(f"[review] the written code needs a review by an agent that did not write it ({why}). Get "
+                       f"the work order with `hr review-brief`, give it to {REVIEWER}, and record its report with "
+                       "`hr record-review`")
     if dispositions:
-        left = [x["id"] for x in open_findings(feature)]
+        left = [x["id"] for x in _code(open_findings(feature))]
         if left:
             out.append("[review] findings with no disposition: " + ", ".join(left) + ". Remove the code and run the "
                        "review again, or the human accepts the finding with a reason (in chat, recorded with "
                        "`hr finding accept <id> --reason ... --quote`)")
+        unsettled = [f"{x['id']} ({x['test']})" for x in _tester(open_findings(feature))]
+        if unsettled:
+            out.append("[tester] findings with no disposition: " + ", ".join(unsettled) + ". Fix the defect, re-run "
+                       "the test so the tester checks the finding again, and record `hr finding fix <id> --commit "
+                       "<sha>`. Or the human decides in chat: `hr finding accept <id> --reason ... --quote` accepts "
+                       "it as a risk, `hr finding dismiss <id> --reason ... --quote` says it is not a defect")
     return out
 
 
@@ -94,7 +106,7 @@ def _untouched(feature: Feature, data: Dict[str, Any], head: str) -> List[Dict[s
     by_id = {r["id"]: r for r in data["reviews"]}
     cache: Dict[str, Optional[Dict[str, str]]] = {}
     out = []
-    for x in data["findings"]:
+    for x in _code(data["findings"]):
         if x.get("disposition"):
             continue
         sha = (by_id.get(x.get("review")) or {}).get("commit_sha") or ""
@@ -107,6 +119,8 @@ def _untouched(feature: Feature, data: Dict[str, Any], head: str) -> List[Dict[s
 
 
 def _place(x: Dict[str, Any]) -> str:
+    if x.get("source") == TESTER:
+        return f"{x['test']} {x['run']}"
     first, last = x["lines"]
     return f"{x['file']}:{first}" + (f"-{last}" if last != first else "")
 
@@ -119,7 +133,7 @@ def brief(feature: Feature) -> Dict[str, Any]:
     report.parent.mkdir(parents=True, exist_ok=True)
     report_rel = report.relative_to(feature.ws.root).as_posix()
     listing = "\n".join(f"  {status} {path}" for path, status in sorted(files.items())) or "  (no file changed)"
-    known = [x for x in data["findings"] if (x.get("disposition") or {}).get("kind") == "accepted"]
+    known = [x for x in _code(data["findings"]) if (x.get("disposition") or {}).get("kind") == "accepted"]
     known += _untouched(feature, data, fp["commit_sha"])
     skip = "\n".join(f"  {x['id']} {_place(x)}: {x['what']}" for x in known)
     prompt = (
@@ -228,7 +242,7 @@ def record(feature: Feature, report: Any) -> Dict[str, Any]:
     still = {x["id"] for x in _untouched(feature, data, fp["commit_sha"])}
     again = {(r["kind"], r["file"]) for r in rows}
     closed = []
-    for x in data["findings"]:
+    for x in _code(data["findings"]):
         if x.get("disposition") or x["id"] in still:
             continue
         kind = "reported_again" if (x["kind"], x["file"]) in again else "removed"
@@ -247,17 +261,113 @@ def record(feature: Feature, report: Any) -> Dict[str, Any]:
     return {"review": review, "new": data["findings"][start:], "closed": closed, "open": sorted(still)}
 
 
-def accept(feature: Feature, fid: str, reason: str, by: str, proof: Dict[str, Any]) -> Dict[str, Any]:
-    if not (reason or "").strip():
-        raise HRError("--reason is required: why the human keeps this code")
-    data = load(feature)
+def _pending(data: Dict[str, List[Dict[str, Any]]], fid: str) -> Dict[str, Any]:
     x = next((f for f in data["findings"] if f["id"] == fid.strip().upper()), None)
     if x is None:
         raise HRError(f"no such finding: {fid}")
     if x.get("disposition"):
         raise HRError(f"{x['id']} already has a disposition: {x['disposition']['kind']}")
-    x["disposition"] = {"kind": "accepted", "at": now(), "by": by, "reason": reason.strip(), **proof}
-    feature.save("findings", data)
-    feature.emit("finding_disposed", finding=x["id"], disposition="accepted", reason=reason.strip(),
-                 actor=f"human:{by}", **proof)
     return x
+
+
+def _decide(feature: Feature, data: Dict[str, List[Dict[str, Any]]], x: Dict[str, Any], disposition: Dict[str, Any],
+            actor: str) -> Dict[str, Any]:
+    x["disposition"] = {"at": now(), **disposition}
+    feature.save("findings", data)
+    feature.emit("finding_disposed", finding=x["id"], disposition=disposition["kind"], actor=actor,
+                 **{k: v for k, v in disposition.items() if k not in ("kind", "by", "at")})
+    return x
+
+
+def accept(feature: Feature, fid: str, reason: str, by: str, proof: Dict[str, Any]) -> Dict[str, Any]:
+    data = load(feature)
+    x = _pending(data, fid)
+    if not (reason or "").strip():
+        raise HRError("--reason is required: " + ("why the human accepts this risk" if x["source"] == TESTER
+                                                  else "why the human keeps this code"))
+    return _decide(feature, data, x, {"kind": "accepted", "by": by, "reason": reason.strip(), **proof}, f"human:{by}")
+
+
+def dismiss(feature: Feature, fid: str, reason: str, by: str, proof: Dict[str, Any]) -> Dict[str, Any]:
+    data = load(feature)
+    x = _pending(data, fid)
+    if x["source"] != TESTER:
+        raise HRError(f"{x['id']} is a finding of the code review: the code is removed or the human keeps it "
+                      "(`hr finding accept`). `dismiss` is for tester findings")
+    if not (reason or "").strip():
+        raise HRError("--reason is required: why this is not a defect")
+    return _decide(feature, data, x, {"kind": "not_defect", "by": by, "reason": reason.strip(), **proof},
+                   f"human:{by}")
+
+
+def _same_text(text: str) -> str:
+    return " ".join(str(text).split()).casefold()
+
+
+def record_tester(feature: Feature, test: Dict[str, Any], run: Dict[str, Any]) -> List[str]:
+    data = load(feature)
+    ids: List[str] = []
+    new: List[str] = []
+    for text in run.get("findings") or []:
+        same = next((x for x in _tester(data["findings"]) if x["test"] == test["id"]
+                     and _same_text(x["what"]) == _same_text(text)
+                     and (x.get("disposition") or {}).get("kind") in (None, "accepted", "not_defect")), None)
+        if same is None:
+            same = {"id": f"FND-{len(data['findings']) + 1:03d}", "source": TESTER, "test": test["id"],
+                    "run": run["run_id"], "commit_sha": run.get("commit_sha"), "what": text, "disposition": None}
+            data["findings"].append(same)
+            new.append(same["id"])
+        ids.append(same["id"])
+    if new:
+        feature.save("findings", data)
+        feature.emit("tester_findings_recorded", test_id=test["id"], run_id=run["run_id"], findings=new,
+                     actor=run.get("recorded_by"))
+    return ids
+
+
+def recheckable(feature: Feature, test_id: str) -> List[Dict[str, Any]]:
+    return [x for x in _tester(open_findings(feature)) if x["test"] == test_id]
+
+
+def _descends(root: Path, old: str, new: str) -> bool:
+    return git(root, "merge-base", "--is-ancestor", old, new) is not None
+
+
+def fix(feature: Feature, fid: str, commit: Optional[str]) -> Dict[str, Any]:
+    data = load(feature)
+    x = _pending(data, fid)
+    if x["source"] != TESTER:
+        raise HRError(f"{x['id']} is a finding of the code review: the next review closes it when the code is "
+                      "removed. `fix` is for tester findings")
+    root = feature.ws.root
+    sha = git(root, "rev-parse", "--verify", "--quiet", f"{commit or 'HEAD'}^{{commit}}")
+    if not sha:
+        raise HRError(f"no such commit: {commit or 'HEAD'}")
+    found = x.get("commit_sha")
+    if not found:
+        raise GateError(f"{x['id']} was reported with no commit recorded, so no later commit can be shown")
+    if sha == found or not _descends(root, found, sha):
+        raise GateError(f"{sha[:10]} is not a commit after {found[:10]}, the code {x['run']} tested when it found "
+                        f"{x['id']}")
+    if not _descends(root, sha, "HEAD"):
+        raise GateError(f"{sha[:10]} is not in the history of the current commit")
+    runs = feature.test_results().get("runs", [])
+    ids = [r["run_id"] for r in runs]
+    later = runs[ids.index(x["run"]) + 1:] if x["run"] in ids else []
+    check = None
+    for run in reversed(later):
+        mine = next((c for c in run.get("rechecked") or [] if c.get("finding") == x["id"]), None)
+        if (mine and run["test_id"] == x["test"] and not run.get("dirty") and run.get("commit_sha")
+                and _descends(root, sha, run["commit_sha"])):
+            check = (run, mine)
+            break
+    if check is None:
+        raise GateError(f"no clean re-run of {x['test']} on or after {sha[:10]} checked {x['id']} again. Get the "
+                        f"brief with `hr test-brief {x['test']}`: it lists the finding for the tester to re-check, "
+                        "then `hr record-agent`")
+    run, mine = check
+    if mine["present"] or run["status"] != "agent_passed":
+        raise GateError(f"{run['run_id']} re-ran {x['test']} after {sha[:10]} and "
+                        + ("still saw " + x["id"] if mine["present"] else "did not pass") + ", so it is not fixed")
+    return _decide(feature, data, x, {"kind": "fixed", "by": "agent", "commit_sha": sha, "run": run["run_id"]},
+                   "agent")
