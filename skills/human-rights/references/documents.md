@@ -40,8 +40,15 @@ and how often the reviewer has to ask again, not by how thorough they look.
   [approvals](approvals.md#red-pill-mode-review-vigilance-drills)). A template that has no focus block still
   renders. Don't write the list yourself; in the "Decision needed" section, say in words the 2-3 things you
   think matter most.
+- **The size of the change is counted, never typed.** The `<!-- hr:size -->` block of `overview.md` (and of
+  `verification.md`, if the template has it) comes from `git diff` between the commit the feature started from
+  and the current commit: files added, changed and deleted; lines added and removed, with test files on their
+  own row; new dependencies read from manifest and lock files. At L2 and L3 it also has one row per task next
+  to the task's purpose. At L0 and L1 it is one line in the completion summary. A number is a pointer to where
+  to look, not a verdict. A template without the block still renders, and `hr doc-check` does not require it.
+  Details: [config](config.md#size-of-the-change-size).
 - Never type result, step, or decision tables by hand. Keep the `<!-- hr:status -->`, `<!-- hr:focus -->`,
-  `<!-- hr:tasks -->`, `<!-- hr:results -->`, `<!-- hr:steps -->` and `<!-- hr:decisions -->` blocks from the
+  `<!-- hr:tasks -->`, `<!-- hr:size -->`, `<!-- hr:results -->`, `<!-- hr:steps -->` and `<!-- hr:decisions -->` blocks from the
   templates and run `hr render`. The results table shows, per test, who runs it, its pass criteria, and its estimated time.
 - Write in `docs.language` (config), or in the user's language if they ask. Keep IDs, commands and markers as is.
 

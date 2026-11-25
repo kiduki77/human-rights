@@ -8,6 +8,10 @@
 ## 왜 이 설계인가
 [FILL: 선택한 방식과 핵심 근거, 대안과의 한 줄 비교]
 
+## 변경 규모
+<!-- hr:size:start -->
+<!-- hr:size:end -->
+
 ## 검증
 <!-- hr:results:start -->
 <!-- hr:results:end -->

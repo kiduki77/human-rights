@@ -210,6 +210,41 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   review finding), and the exact effect of an `irreversible_external` flag (recipient, amount, record).
   Both need data the plan does not record yet.
 
+## Size of the change (`hr:size`)
+
+- **The runtime counts, the agent never types.** `hr render` fills the block from `git diff` between
+  `state.git.base_sha` and the commit under approval, and `hr change-size` prints the same text. A number the agent
+  typed could be rounded down. The block is optional in templates, so `check_docs` does not require it.
+- **Where it shows.** The `hr:size` block is in `overview.md` (the first thing the approver reads at final) and
+  in the L0 and L1 completion summary. `verification.md` renders it too if its template has the block, but the
+  shipped template does not, so the numbers appear once. The block is not one of the blocks a red pill plant
+  touches, and it is not read by `focus_block`.
+- **Test files and lock files get their own rows.** Test lines are shown beside code lines, as the issue asks.
+  A lock file can change thousands of lines for one new dependency, so it is a third row instead of code.
+- **New dependencies are names, not versions.** A name in a changed manifest at the approved commit and not at
+  the starting commit is new. Readers exist for the manifests of Python, JavaScript, Go, Rust, Java and Kotlin,
+  .NET, PHP and Ruby. A matching file with no reader is reported as changed and not read, never as no
+  dependency. Lock files add a count of newly locked packages.
+- **Patterns are config keys with defaults.** `size.test_patterns`, `size.manifests` and `size.lockfiles` hold the
+  defaults for those ecosystems. A key you set replaces its list, so a team that does not want Rust's `tests/`
+  directory counted as tests can say so. The matcher is a small glob (`**/` for any directories; a pattern with
+  no `/` matches the file name) so one list works on every platform.
+- **Per task, commits first, paths second.** Each task is recorded by `verified_evidence.commit_sha`, and a
+  worktree task also has the commit its branch started from. A worktree task is counted from that start to its
+  verified commit. A task on the integration branch is counted from the nearest earlier recorded commit (the
+  feature's start, another task's verified commit, or a worktree merge) to its own. If the task is not verified,
+  its commit is not in the current history, or the diff fails, the row uses the files of the whole diff that match
+  `scope.paths`, and the last column says which. The path fallback cannot see changes outside the paths, and
+  two tasks in one file are counted twice. The row "Not in any task" shows what the diff changed outside every task's files.
+- **Uncommitted work counts at L0 and L1.** The small-change flow may not commit, and a size of zero would be
+  wrong. The count then runs to the working tree and says so. At L2 and L3 the gates already require committed code.
+- **The plan states no expected size.** The issue asks whether a result several times larger than planned should be
+  marked. Left out for now: an estimate in the plan would be a number the agent types, and the one it would be
+  compared against. The count shows what was built, and the reviewer decides whether it is too much. It can be
+  revisited once a few features show how far the counts differ from what people expect.
+- **Left out:** renames (a rename is one file deleted and one added), the size of generated code that is
+  not a lock file (add it to `size.lockfiles`), and a size in `hr metrics`.
+
 ## Red pill mode (review-vigilance drills)
 
 - **The plant lives only in rendered review tables** (`overview.md`, `verification.md`). Plan JSON and

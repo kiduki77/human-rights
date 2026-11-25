@@ -1,8 +1,28 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+SIZE_TEST_PATTERNS = [
+    "**/tests/**", "**/test/**", "**/__tests__/**", "**/spec/**", "test_*.py", "*_test.py", "conftest.py",
+    "*.test.*", "*.spec.*", "*_test.go", "*Test.java", "*Tests.java", "*Test.kt", "*Tests.kt", "*Test.cs",
+    "*Tests.cs", "**/*.Tests/**", "**/*.Test/**",
+]
+SIZE_MANIFESTS = [
+    "package.json", "composer.json", "pyproject.toml", "requirements*.txt", "Pipfile", "go.mod", "Cargo.toml",
+    "pom.xml", "build.gradle", "build.gradle.kts", "*.csproj", "Directory.Packages.props", "packages.config", "Gemfile",
+]
+SIZE_LOCKFILES = [
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "uv.lock", "Pipfile.lock", "Cargo.lock",
+    "go.sum", "composer.lock", "Gemfile.lock", "packages.lock.json", "gradle.lockfile",
+]
+
+
+def _flow(items: List[str]) -> str:
+    return "[" + ", ".join(json.dumps(x) for x in items) + "]"
+
 
 DEFAULT_CONFIG_TEXT = """\
 version: 1
@@ -47,6 +67,11 @@ docs:
   prose_check: error
   banned_phrases: []
   allowed_phrases: []
+
+size:
+  test_patterns: """ + _flow(SIZE_TEST_PATTERNS) + """
+  manifests: """ + _flow(SIZE_MANIFESTS) + """
+  lockfiles: """ + _flow(SIZE_LOCKFILES) + """
 
 agents:
   preset: balanced

@@ -219,7 +219,7 @@ flowchart LR
 <td valign="top"><b>5 · 👤 Design approval</b><br>By a human, bound to the plan's hashes.</td>
 <td valign="top"><b>6 · Implement + verify</b><br>In DAG order, one verifiable commit per task, in parallel worktrees when the tasks are independent.</td>
 <td valign="top"><b>7 · Integration testing</b><br>Everything on one commit. Failures are classified and routed back, then the full plan re-runs. Then an agent that did not write the code reads the diff for code nothing asked for.</td>
-<td valign="top"><b>8 · 👤 Final approval</b><br>By a human, bound to the verified commit. Then merging follows your repo's rules. Auto-merge is off.</td>
+<td valign="top"><b>8 · 👤 Final approval</b><br>By a human, bound to the verified commit, with the size of the change counted from the diff (files, lines in code and tests, new dependencies, per task). Then merging follows your repo's rules. Auto-merge is off.</td>
 </tr>
 </table>
 
@@ -587,6 +587,7 @@ scenarios end to end against temporary git repositories:
 - plan gaps block approval, and design edits invalidate it;
 - code changes invalidate final approval, while docs-only commits don't;
 - final approval waits for a review of the written code, and for a decision on each of its findings;
+- the size of the change is counted from the diff, per task from its commits, and a missing task commit falls back to its paths;
 - repeated failures escalate, and the agent can't approve or release an escalation;
 - resume detects unrecorded commits, and tampering is detected;
 - independent tasks run in real worktrees, while conflicting ones are serialized;

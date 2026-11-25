@@ -105,7 +105,9 @@ are unresolved, and at L2 and L3 the written code was reviewed on that commit (s
 1. `hr render`, update `overview.md` into the final-report shape (structure of `review-report.md`),
    `hr doc-check`.
 2. `hr transition awaiting_final_approval`.
-3. Show: the one-line conclusion; the "read closely" list from the focus block, as rendered; what actually
+3. Show: the one-line conclusion; the "read closely" list from the focus block, as rendered; the size of
+   the change from the size block, as rendered (files added, changed and deleted; lines in code and in tests;
+   new dependencies; at L2 and L3 a row per task next to its purpose); what actually
    changed; the requirement → test → result → evidence table
    (the rendered block); the review findings table from `verification.md`, pasted as rendered, with a
    question for each row that has no outcome yet (remove it, or keep it and why); deviations from the plan;
@@ -113,6 +115,7 @@ are unresolved, and at L2 and L3 the written code was reviewed on that commit (s
 
 ```
 Final approval needed. Verified commit: 3f2a91c0de (8/8 required tests passing)
+Size: 6 files added, 2 changed; code +310 / -12, tests +190 / -0; 1 new dependency (leaflet)
 
   approve:         say so in chat, with any residual risk you accept
   point at items:  tell me which row looks wrong
@@ -125,6 +128,11 @@ Final approval needed. Verified commit: 3f2a91c0de (8/8 required tests passing)
    On "keep it" for a review finding: `hr finding accept FND-002 --reason "..." --quote "<words>"`. On
    "remove it": that is a change request. The runtime refuses the approval while a finding has no outcome.
    On approval it moves to `ready_to_merge`.
+
+The size numbers come from `git diff` between `state.git.base_sha`, the commit the feature started from, and
+the commit under approval. You do not type them, and they change only when the code does. They say where to
+look: six new files behind a request for one number on a map pin is a reason to ask why. They do not say
+whether the change is right. The rules for counting are in [config](config.md#size-of-the-change-size).
 
 Final approval is bound to the code tree fingerprint. If the code changes after approval, the runtime
 invalidates the approval and moves the feature back to `integrating`. Re-run every required test, then
