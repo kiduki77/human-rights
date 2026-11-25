@@ -42,6 +42,7 @@ docs:
   language: en
   l0_summary_max_lines: 15
   overview_max_lines: 120
+  focus_max: 7
   prose_check: error
   banned_phrases: []
   allowed_phrases: []

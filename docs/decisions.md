@@ -160,6 +160,27 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   minutes, escaped defects, intent mismatches, unnecessary questions. Everything else comes from the event log.
 - **Template packs are hash-tracked.** Locally customized templates are never overwritten without `--force`.
 
+## Rows to read closely (`hr:focus`)
+
+- **The list is built from the rendered tables, not from the plan files.** A red pill plant changes, adds
+  or removes rows in the rendered tables only. A list built from `requirements.json` and `task-graph.json`
+  would disagree with the planted table and point at the plant, or hide a planted high-risk row that a
+  careful reader should see. So `render()` fills the focus block last: it reads the task and decision
+  blocks as they stand in the file after `redpill.inject`, and maps the localized labels back through the
+  same value tables that wrote them. The list reads no drill data. A test removes the plant's metadata and
+  checks that the file does not change.
+- **It lists, it does not judge.** Each line gives the ID and why the row is listed. No line says a row is
+  wrong. Routing flags are listed with the question "what does approving this let happen?", because the
+  runtime knows a flag is set but not what the approval permits.
+- **Capped at 7, highest risk first** (`docs.focus_max`): flags, answers that differ from the user's,
+  high-risk tasks, high-risk assumptions, decisions made by someone else, medium-risk assumptions. A longer
+  list is read like the tables it came from, so the rest is counted, not listed.
+- **Optional in templates.** `check_docs` does not require the block, so a workspace that still has the old
+  `overview.md` template keeps rendering.
+- **Left out for now:** extra final-gate items (a result that passed in a weaker environment, an accepted
+  review finding), and the exact effect of an `irreversible_external` flag (recipient, amount, record).
+  Both need data the plan does not record yet.
+
 ## Red pill mode (review-vigilance drills)
 
 - **The plant lives only in rendered review tables** (`overview.md`, `verification.md`). Plan JSON and

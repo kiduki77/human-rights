@@ -62,6 +62,8 @@ Red pill drills do not run on this gate. Rules for the split itself: [splitting]
 2. `hr transition awaiting_design_approval`.
 3. Show the human (1-2 screens, based on `overview.md`), in this order:
    - the one-line conclusion: what changes and why
+   - the "read closely" list from the focus block, pasted as rendered: the rows to read slowly, each with
+     the reason it is listed. Don't add to it, remove from it, or reword it
    - **anything that differs from what they answered**, first and on its own: the "changed from your
      answer" table from the decisions block. Never fold it into a sentence
    - the remaining decisions and the assumptions made for them, pasted from the decisions block. Say each
@@ -102,7 +104,8 @@ are unresolved, and at L2 and L3 the written code was reviewed on that commit (s
 1. `hr render`, update `overview.md` into the final-report shape (structure of `review-report.md`),
    `hr doc-check`.
 2. `hr transition awaiting_final_approval`.
-3. Show: the one-line conclusion; what actually changed; the requirement → test → result → evidence table
+3. Show: the one-line conclusion; the "read closely" list from the focus block, as rendered; what actually
+   changed; the requirement → test → result → evidence table
    (the rendered block); the review findings table from `verification.md`, pasted as rendered, with a
    question for each row that has no outcome yet (remove it, or keep it and why); deviations from the plan;
    remaining risks and anything not run; and the verified commit SHA. Commands:
@@ -167,6 +170,12 @@ refused. A catch after a refusal is recorded separately and does not move the le
 The plant exists only in the rendered `overview.md` / `verification.md` tables. It is never in the plan
 JSON, `requirements.json` or `design.md`, so it can't be executed, and it never affects approval hashes. When the drill ends,
 `hr render` restores the real table.
+
+The "read closely" list in `overview.md` (the `hr:focus` block) is built from the task and decision tables as
+they are rendered, after the plant is applied, so it never disagrees with them. A planted high-risk task or
+medium-risk assumption is listed like a real one. A decision the plant credits to the user is not listed. A
+removed task is not listed. The list reads no drill data, so it looks the same in a drilled and an undrilled
+render of the same rows.
 
 ### Candidates are written for the feature
 

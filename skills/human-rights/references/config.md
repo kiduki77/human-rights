@@ -27,6 +27,7 @@ on auto-merge, widens parallelism, or turns red pill mode off. To change policy,
 | `docs.language` | `en` | Language of everything humans read under `.human-rights/`: templates (`templates/<lang>/`), rendered tables, red pill plants. `en` or `ko`. The structural checks are language-agnostic |
 | `docs.l0_summary_max_lines` | `15` | Length budget for an L0 `overview.md` |
 | `docs.overview_max_lines` | `120` | Length budget for an L2/L3 `overview.md` |
+| `docs.focus_max` | `7` | Most lines in the `hr:focus` "read closely" list of `overview.md`. The rest are counted, not listed |
 | `docs.prose_check` | `error` | Filler-wording scan in `hr doc-check` (see [writing](writing.md)). `error`: a hit fails the check and blocks approval requests. `warn`: reported only. `off`: no scan |
 | `docs.banned_phrases` | `[]` | Extra words or phrases this team does not want in its documents |
 | `docs.allowed_phrases` | `[]` | Hits to accept because they are real terms here (a product name, a field label) |

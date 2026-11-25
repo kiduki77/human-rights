@@ -109,6 +109,7 @@ requirements, the acceptance criteria, the risks, the reason for each change, an
 <tr><td>The agent guesses at undecided policy</td><td>Decisions that change the design are asked as 3-5 focused questions; safety policy must come from you</td></tr>
 <tr><td>"Tests pass" because the agent said so</td><td>A pass is a recorded run on the commit you approve</td></tr>
 <tr><td>An approval survives plan changes</td><td>Approvals are bound to plan hashes and code fingerprints, so any change invalidates them</td></tr>
+<tr><td>On a long plan every row gets the same attention, so the ones that matter get skimmed</td><td>The overview opens with a short list of rows to read closely and why: decisions you did not make, assumptions at medium or high risk, high-risk tasks, and what each routing flag lets happen. It is a pointer, never a verdict</td></tr>
 <tr><td>You approve a wall of text you didn't read</td><td>Reports lead with the conclusion and your decision, filler wording is rejected, and <a href="#red-pill-mode">red pill mode</a> checks that you read them</td></tr>
 </table>
 
@@ -467,7 +468,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
 ├── features/FEAT-001-multi-drone/          a feature on its own
-│   ├── overview.md             for humans: conclusion, state, decision needed
+│   ├── overview.md             for humans: conclusion, state, rows to read closely, decision needed
 │   ├── requirements.md  design.md  verification.md
 │   ├── tasks/TASK-001.md ...
 │   ├── details/                evidence you read only when you need it
