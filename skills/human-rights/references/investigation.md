@@ -71,3 +71,7 @@ it with the design.
 - State the recommendation together with its rationale and the remaining uncertainty.
 
 Output: the "Alternatives" table in `design.md`; details in `details/research.md`.
+
+Then list what the design introduces: each new module, layer or dependency, with the requirement behind it,
+the existing thing found in the investigation, and why it was not used. If the design adds nothing,
+write "Nothing new".

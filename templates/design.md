@@ -24,6 +24,14 @@ sequenceDiagram
 
 If there is only one real option, replace the table with one line: "No alternative: [reason]".
 
+## What this design introduces
+<!-- hr:introduces -->
+[FILL: each new module, layer or dependency, with the requirement behind it, the existing thing in the repository you considered, and why it is not enough. If nothing is new, replace this paragraph and the table with one line: "Nothing new: [what the existing code already does]".]
+
+| New part | Requirement or task | Existing thing considered | Why it is not used |
+|---|---|---|---|
+| [FILL] | | | |
+
 ## Other places that use it
 <!-- hr:impact:start -->
 <!-- hr:impact:end -->

@@ -29,6 +29,13 @@ sequenceDiagram
 | **A (recommended)** registry + explicit target | link, command, ui | medium | good: one owner per concern | unit + SITL e2e | none |
 | B one GCS process per vehicle | packaging, ui | low in code, high in ops | poor: N windows, no shared view | hard | process manager |
 
+## What this design introduces
+<!-- hr:introduces -->
+| New part | Requirement or task | Existing thing considered | Why it is not used |
+|---|---|---|---|
+| `VehicleRegistry` | REQ-001, TASK-001 | the module-level connection object in `src/link/conn.py` | it holds one connection, and the requirement is one session per system_id |
+| `CommandTarget` | REQ-002, TASK-002 | the command helpers that read that connection directly | they have no selection to read, so a command cannot name its target |
+
 ## Other places that use it
 <!-- hr:impact:start -->
 <!-- hr:impact:end -->

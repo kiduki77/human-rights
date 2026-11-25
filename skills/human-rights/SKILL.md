@@ -180,7 +180,7 @@ lines.
 |---|---|---|---|
 | Clarify intent | `clarifying` | 3-5 questions per round, then answers into `requirements.json` and `requirements.md` | [elicitation](references/elicitation.md) |
 | Investigate code | `investigating` | Evidence-backed findings, Verified/Inferred/Unknown, in `details/codebase.md` | [investigation](references/investigation.md) |
-| Alternatives & design | `planning` | Compare alternatives only when real ones exist; write `design.md` and `details/research.md` | [investigation](references/investigation.md) |
+| Alternatives & design | `planning` | Compare alternatives only when real ones exist; list in `design.md` what it introduces and the existing thing each new part replaces; write `design.md` and `details/research.md` | [investigation](references/investigation.md) |
 | Decompose & plan tests | `planning` | `task-graph.json`, `test-plan.json` (including integration tests), `tasks/TASK-*.md`, `verification.md` | [planning](references/planning.md) |
 | Quality gate | `planning` | `hr plan-check` with zero hard fails, plus an independent review | [planning](references/planning.md) |
 | Design approval | `awaiting_design_approval` | `hr render`, then request approval | [approvals](references/approvals.md) |
@@ -232,7 +232,8 @@ conversation is always the single writer of workflow state.
 
 - `hr-investigator`: read-only code investigation, for evidence gathering in L2/L3 `investigating`.
 - `hr-plan-reviewer`: independent review of the plan and approval documents, once after `plan-check`
-  passes and before you request approval.
+  passes and before you request approval. It also asks whether each task and each new module, layer or
+  dependency has a requirement behind it.
 - `hr-code-reviewer`: at L2 and L3, reviews the written code once the tests pass and before you request
   final approval. It gets the work order from `hr review-brief` and nothing from you about what was built.
   It reports code nothing asks for, repeated code and unused code. It never edits code. You never accept

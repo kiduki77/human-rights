@@ -37,12 +37,13 @@ several features left for each one to make separately?
 | Dependency soundness | Is the DAG acyclic? Do the shared contracts and their order match the design? |
 | Reviewability | Could a human understand the intent, risk and evidence of each task in minutes? |
 | Wording | In whatever language the documents use: does every sentence state something checkable about this feature, or could it sit unchanged in any other document? Flag brochure words, claims of importance, self-praise, stock transitions, and word-for-word translated filler, with the plain replacement |
+| Need | For each task, and for each module, layer or dependency `design.md` introduces: is there a requirement behind it, and why is what the repository already has not enough? Does "What this design introduces" list every new part that the tasks' `scope.paths` and the structure section show? Does each "existing thing considered" name something you can find in the repository, and does its reason hold up when you open that code? Is "Nothing new" true? |
 | Integrability | Would the tasks combined satisfy the feature scenarios? Is the integration plan enough to call this done? |
 | Impact | Does `impact` name the thing that changes as the user sees it, or a file? Were the other names it goes by searched? Search once yourself: is a place that shows, computes, stores or sends it missing from the table? Would the test behind each `check` row fail if that place broke? Does an `unrelated` reason hold up? |
 
 **Hard fails**, which no score can outweigh: a missing must requirement; no verification method; a
 dependency cycle; a risky or safety policy decided without the user; an unresolved interface conflict; an
-integration plan that can't detect the feature's main failure mode; a pass criterion that cannot fail; a
+integration plan that can't detect the feature's main failure mode; a task or a new module, layer or dependency that no requirement asks for, or one whose existing alternative was not shown to fall short; a pass criterion that cannot fail; a
 user answer changed without `overrides_user_answer`.
 
 Documents: Is the conclusion first? Is the decision asked of the human explicit, in words and not bare
