@@ -352,6 +352,10 @@ On a host without sub-agents, set `redpill.author: builtin` to use the runtime's
 misses in a row. A catch made after an approval was already refused is recorded separately and does not
 move the level.
 
+Naming every row would find any plant, so a catch that names more than `redpill.max_flags` rows (default 3)
+in one approval is recorded as its own outcome. It is left out of the catch rate and the level, and the
+message says why. Naming several rows for real reasons still works. Only the count changes.
+
 Approve without noticing, and you get told off:
 
 ```text
@@ -375,6 +379,7 @@ Say it in chat, in your own words. Name the row by its ID or describe it.
 | You point at the planted row | Caught, and approved in the same step. You don't need to add "approved". The reason it was wrong is shown. |
 | You name a row that should be there and isn't | The same, when that row is the one that was left out. |
 | You point at a real row | No scolding. It is recorded as a review concern, and approval waits until the agent has dealt with it. |
+| You name more than 3 rows, the plant among them | The plant is removed, and you are told it does not count toward your catch rate or level. The other rows stay review concerns. |
 | "show me the answer" | The plant and the reason are shown, and it counts as missed. Approve again afterwards. |
 | You ask for a change | Handled as a change request. The drill ends, and the next request draws again. |
 
@@ -393,9 +398,21 @@ you> show me the answer                                     give up: see it and 
 
 /hrs:redpill on 5 hard                    about 1 in 5 approval requests, hard
 /hrs:redpill on 10 adaptive final         final gate only, difficulty follows your record
-/hrs:redpill off
+/hrs:redpill off <reason>                 the reason is recorded, and shown in status and metrics
 /hrs:redpill status                       catch rate per difficulty, kinds of flaw you miss most
 ```
+
+Next to the catch rate, `/hrs:redpill status` and `/hrs:metrics` show what the rate leaves out:
+
+- approvals given, how many of them while drills could not run, and how many named at least one row;
+- rows you named that were not the plant, in total and per approval (some are real concerns, so this counts
+  what you named, not whether you were right);
+- drills not counted because too many rows were named;
+- how long drills were off, with who turned them off and why.
+
+Turning drills off needs `--reason`. Every on, off and change of frequency, difficulty or gates is written to
+`.human-rights/redpill-log.jsonl` with who, when, how, and why. A hand edit of `redpill.enabled` in
+`config.yaml` is not detected.
 
 `/hrs:init` asks whether to turn it on, at which difficulty, and how often.
 
@@ -464,6 +481,7 @@ values itself (agent tokens, human review minutes, escaped defects). Record thos
 ├── config.yaml                 repository policy
 ├── floor.yaml                  (optional) paths that always need at least a level, owner-only
 ├── floor.seal                  what the floor was at the owner's last decision
+├── redpill-log.jsonl           every red pill on, off and setting change: who, when, why
 ├── active.json                 the active feature
 ├── templates/                  (optional) your team's report templates
 ├── features/FEAT-001-multi-drone/          a feature on its own
@@ -503,7 +521,7 @@ tables are generated from recorded evidence by `hr render`, never typed by the a
 | `github` | `enabled: auto`, `issue_modes: [L2, L3]`, `draft_pr_modes: [L2, L3]`, `auto_merge: false` |
 | `verification` | `max_same_failure_retries: 3`, `default_timeout_seconds: 900`, `max_parallel_tests: 4` |
 | `scheduler` | `max_parallel_tasks: 3`, `worktree_root` (default: sibling `<repo>.hr-worktrees/`) |
-| `redpill` | `enabled: false`, `one_in: 10`, `difficulty: adaptive`, `author: agent`, `gates: [design, final]` |
+| `redpill` | `enabled: false`, `one_in: 10`, `difficulty: adaptive`, `author: agent`, `max_flags: 3`, `gates: [design, final]` |
 | `docs` | `language: en`, `l0_summary_max_lines: 15`, `overview_max_lines: 120`, `prose_check: error` |
 | `groups` | `max_active_children: 1` |
 | `agents` | model and effort per sub-agent, from the preset chosen at `/hrs:init` |

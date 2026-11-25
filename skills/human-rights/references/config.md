@@ -18,11 +18,12 @@ on auto-merge, widens parallelism, or turns red pill mode off. To change policy,
 | `scheduler.max_parallel_tasks` | `3` | Max tasks implemented at once in separate worktrees (`1` = sequential) |
 | `scheduler.worktree_root` | `""` | Where task worktrees live. Empty: a sibling `<repo>.hr-worktrees/` directory, so test runners and linters in the main checkout never pick up the copies |
 | `groups.max_active_children` | `1` | How many features of one group may be in progress at once. The human's review is the bottleneck, so the default is one |
-| `redpill.enabled` | `false` | Red pill mode: occasionally plant a plausible but unacceptable item in the approval tables and refuse rubber-stamp approvals (see [approvals](approvals.md#red-pill-mode-review-vigilance-drills)) |
+| `redpill.enabled` | `false` | Red pill mode: occasionally plant a plausible but unacceptable item in the approval tables and refuse rubber-stamp approvals (see [approvals](approvals.md#red-pill-mode-review-vigilance-drills)). Turn it off with `hr redpill off --reason`, which logs who, when, and why. A hand edit of this key is not detected |
 | `redpill.one_in` | `10` | Drill frequency: about 1 in N approval requests |
 | `redpill.gates` | `[design, final]` | Which approval gates can be drilled |
 | `redpill.difficulty` | `adaptive` | `easy`, `normal`, `hard`, or `adaptive` (starts easy; up after 2 clean catches in a row, down after 2 misses in a row) |
 | `redpill.author` | `agent` | `agent`: `hr-redpill-author` writes candidates for each plan, and an approval request waits for them. `builtin`: the runtime's own lists and row alterations, for hosts without sub-agents |
+| `redpill.max_flags` | `3` | A catch made by naming more than this many rows in one approval is recorded as a separate outcome. It is left out of the catch rate and does not move the adaptive level. Naming more rows is still allowed |
 | `redpill.language` | `""` | Language of the scolding (`en`, `ko`); empty follows `docs.language` |
 | `docs.language` | `en` | Language of everything humans read under `.human-rights/`: templates (`templates/<lang>/`), rendered tables, red pill plants. `en` or `ko`. The structural checks are language-agnostic |
 | `docs.l0_summary_max_lines` | `15` | Length budget for an L0 `overview.md` |

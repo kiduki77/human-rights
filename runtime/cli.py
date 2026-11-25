@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from runtime.common import GateError, HRError, find_repo_root, fingerprint, now
 from runtime.state.store import Feature, Workspace, new_state
@@ -59,7 +59,9 @@ def cmd_init(ws: Workspace, args) -> int:
     drill = _redpill_values(args.redpill, args.redpill_difficulty, args.redpill_one_in)
     created = ws.init()
     if drill:
-        set_section(ws.config_path, "redpill", drill)
+        from runtime import redpill
+
+        redpill.set_config(ws, drill, {"by": "hr init", "via": "init"})
     if args.language:
         set_section(ws.config_path, "docs", {"language": args.language})
     if agent_values:
@@ -75,7 +77,7 @@ def cmd_init(ws: Workspace, args) -> int:
 
 
 def _redpill_values(switch: Optional[str], difficulty: Optional[str], one_in: Optional[int],
-                    author: Optional[str] = None) -> Dict[str, Any]:
+                    author: Optional[str] = None, max_flags: Optional[int] = None) -> Dict[str, Any]:
     from runtime import redpill
 
     values: Dict[str, Any] = {}
@@ -95,6 +97,10 @@ def _redpill_values(switch: Optional[str], difficulty: Optional[str], one_in: Op
         if author not in redpill.AUTHORS:
             raise HRError("--author takes " + " or ".join(redpill.AUTHORS))
         values["author"] = author
+    if max_flags is not None:
+        if max_flags < 1:
+            raise HRError("--max-flags must be at least 1")
+        values["max_flags"] = max_flags
     return values
 
 
@@ -105,7 +111,29 @@ def _print_redpill(ws: Workspace) -> None:
     shown = s["difficulty"] if s["difficulty"] != "adaptive" else f"adaptive (now {redpill.level(ws)})"
     print(f"Red pill mode: {'on' if s['enabled'] else 'off'}  |  about 1 in {s['one_in']} approval requests  |  "
           f"difficulty: {shown}  |  gates: {', '.join(s['gates'])}  |  drills written by: {s['author']}  |  "
-          f"language: {s['language']}")
+          f"language: {s['language']}  |  a catch naming more than {s['max_flags']} rows is not counted")
+
+
+def _print_reviews(r: Dict[str, Any], indent: str = "") -> None:
+    per = f" ({r['rows_not_plant_per_approval']} per approval)" if r["approvals"] else ""
+    print(f"{indent}approvals {r['approvals']} (drills off for {r['approvals_drills_off']}), "
+          f"{r['approvals_naming_rows']} named at least one row  |  rows named that were not the plant: "
+          f"{r['rows_not_plant']}{per}")
+
+
+def _print_off(prog: Dict[str, Any], indent: str = "") -> None:
+    from runtime.metrics import fmt_duration
+    from runtime.redpill import LOG_FILE
+
+    if prog["off_periods"]:
+        print(f"{indent}drills were off for {fmt_duration(prog['off_seconds'])} in {len(prog['off_periods'])} "
+              f"period{'' if len(prog['off_periods']) == 1 else 's'}:")
+    for p in prog["off_periods"]:
+        reason = p["reason"] or ("no reason recorded" if p["via"] != "init" else "set through hr init")
+        print(f"{indent}  {p['from']} to {p['to'] or 'now'} ({fmt_duration(p['seconds'])}), by {p['by']}: {reason}")
+    if prog["setting_changes"]:
+        print(f"{indent}settings changed {prog['setting_changes']} time{'' if prog['setting_changes'] == 1 else 's'} "
+              f"(.human-rights/{LOG_FILE} has each change)")
 
 
 def _print_agents(ws: Workspace) -> None:
@@ -764,20 +792,17 @@ def _gate_since(f: Feature, args) -> Optional[str]:
     return human.entered_at(f, st) if st in GATE_STATES.values() or st == "blocked" else None
 
 
-def _apply_flags(f: Feature, items: List[str], by: str, note: str, proof: Dict[str, Any]) -> List[str]:
+def _apply_flags(f: Feature, items: List[str], by: str, note: str, proof: Dict[str, Any]) -> Tuple[List[str], int]:
     from runtime import redpill
 
-    concerns = []
-    for item in items:
-        res = redpill.flag(f, item, by, note, proof)
+    results = redpill.flag_all(f, items, by, note, proof)
+    for res in results:
         print(res["message"])
-        if not res["caught"]:
-            concerns.append(item.strip().upper())
-    return concerns
+    return [r["item"] for r in results if not r["caught"]], len(results)
 
 
 def cmd_approve(ws: Workspace, args) -> int:
-    from runtime import human
+    from runtime import human, redpill
     from runtime.approvals import gates
     from runtime.state import machine
 
@@ -789,8 +814,10 @@ def cmd_approve(ws: Workspace, args) -> int:
         raise GateError(f"{args.gate} approval is only possible in {expected} (current: {current})")
     who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
     by, proof = who["by"], human.proof_fields(who)
-    concerns = _apply_flags(f, args.flag or [], by, args.note or "", proof)
+    concerns, named = _apply_flags(f, args.flag or [], by, args.note or "", proof)
     if concerns:
+        if args.gate in ("design", "final"):
+            redpill.record_decision(f, args.gate, by, named, False)
         raise GateError("not approved: the human pointed out " + ", ".join(concerns) + ". Address each point "
                         "(change the plan and resubmit, or explain why it is fine) and ask for approval again.")
     st = f.state()
@@ -810,12 +837,14 @@ def cmd_approve(ws: Workspace, args) -> int:
         return 0
     if args.gate == "design":
         rec = gates.approve_design(f, st, by, args.scope or "", args.note or "", proof)
+        redpill.record_decision(f, "design", by, named, True)
         f.save_state(st)
         print(f"design approval recorded: {by} via {who['via']} | bundle {rec['bundle_hash'][:12]}")
         machine.transition(f, "executing", "design approved", actor=f"human:{by}")
         print("state -> executing")
     else:
         rec = gates.approve_final(f, st, by, args.risks or "", args.note or "", proof)
+        redpill.record_decision(f, "final", by, named, True)
         f.save_state(st)
         print(f"final approval recorded: {by} via {who['via']} | commit {rec['commit_sha'][:10]}")
         machine.transition(f, "ready_to_merge", "final approval", actor=f"human:{by}")
@@ -1200,6 +1229,11 @@ def cmd_metrics(ws: Workspace, args) -> int:
         for m, v in data["by_mode"].items():
             print(f"  {m}: {v['features']} done, lead {fd(v['mean_lead_time_s'])}, approval wait "
                   f"{fd(v['mean_approval_wait_s'])}, rework {v['mean_rework_rate']}, escaped defects {v['escaped_defects']:.0f}")
+        rp = data["redpill"]
+        print(f"  red pill: drills {rp['drills']}, caught {rp['caught']}, after a refusal {rp['caught_after_refusal']}, "
+              f"scattershot (not counted) {rp['scattershot']}, missed {rp['missed']}, catch rate {rp['catch_rate']}")
+        _print_reviews(rp, "    ")
+        _print_off(rp, "    ")
         return 0
     f = _feature(ws, args)
     d = metrics.feature_metrics(f)
@@ -1215,6 +1249,10 @@ def cmd_metrics(ws: Workspace, args) -> int:
           f"verification coverage {d['verification_coverage']}")
     print(f"  escaped defects {d['escaped_defects']:.0f}  |  intent mismatch {d['intent_mismatch']:.0f}  |  "
           f"unnecessary question rate {d['unnecessary_question_rate']}  |  tokens {d['tokens']:.0f}  |  agent time {fd(d['agent_seconds'])}")
+    rp = d["redpill"]
+    print(f"  red pill: drills {rp['drills']}, caught {rp['caught']}, after a refusal {rp['caught_after_refusal']}, "
+          f"scattershot (not counted) {rp['scattershot']}, missed {rp['missed']}, catch rate {rp['catch_rate']}")
+    _print_reviews(rp, "    ")
     for b in d["parallel_batches"]:
         print(f"  parallel batch {', '.join(b['tasks'])}: serial {fd(b['serial_s'])} vs wall {fd(b['wall_s'])} (x{b['speedup']})")
     return 0
@@ -1256,8 +1294,8 @@ def cmd_flag(ws: Workspace, args) -> int:
 
     f = _feature(ws, args)
     who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
-    for item in args.items:
-        print(redpill.flag(f, item, who["by"], args.note or "", human.proof_fields(who))["message"])
+    for res in redpill.flag_all(f, args.items, who["by"], args.note or "", human.proof_fields(who)):
+        print(res["message"])
     return 0
 
 
@@ -1267,11 +1305,13 @@ def cmd_redpill(ws: Workspace, args) -> int:
     from runtime import human
 
     ws.require_init()
+    who = None
+    reason = (args.reason or "").strip()
     if args.redpill_cmd in ("on", "off"):
-        if args.quote is not None:
-            human.verify(ws, args.quote)
-        else:
-            human.require_terminal()
+        who = human.resolve(ws, args.by or human.default_name(ws), args.quote)
+    if args.redpill_cmd == "off" and not reason:
+        raise HRError('hr redpill off needs --reason "<why drills are off>": the reason is recorded and shown in '
+                      "`hr redpill status` and `hr metrics`")
     if args.redpill_cmd in ("brief", "seed"):
         f = _feature(ws, args)
         if not args.gate:
@@ -1289,7 +1329,7 @@ def cmd_redpill(ws: Workspace, args) -> int:
         print(f"{res['count']} candidates accepted for the {res['gate']} gate")
         return 0
     if args.redpill_cmd == "on":
-        values = {"enabled": True, **_redpill_values(None, args.difficulty, args.one_in, args.author)}
+        values = {"enabled": True, **_redpill_values(None, args.difficulty, args.one_in, args.author, args.max_flags)}
         if args.gates:
             gates = [g.strip() for g in args.gates.split(",") if g.strip()]
             if not gates or any(g not in ("design", "final") for g in gates):
@@ -1297,9 +1337,9 @@ def cmd_redpill(ws: Workspace, args) -> int:
             values["gates"] = gates
         if args.language:
             values["language"] = args.language
-        redpill.set_config(ws, values)
+        redpill.set_config(ws, values, who, reason)
     elif args.redpill_cmd == "off":
-        redpill.set_config(ws, {"enabled": False})
+        redpill.set_config(ws, {"enabled": False}, who, reason)
     elif args.redpill_cmd == "reveal":
         f = _feature(ws, args)
         who = human.resolve(ws, args.by, args.quote, _gate_since(f, args))
@@ -1309,7 +1349,10 @@ def cmd_redpill(ws: Workspace, args) -> int:
     prog = redpill.progress(ws)
     print(f"all features: drills {prog['drills']}, caught {prog['caught']}, caught after a refusal "
           f"{prog['caught_after_refusal']}, missed {prog['missed']}, rubber stamps {prog['rubber_stamps']}, "
+          f"caught by naming more than {prog['max_flags']} rows {prog['scattershot']} (not counted), "
           f"catch rate {prog['catch_rate']}")
+    _print_reviews(prog, "  ")
+    _print_off(prog, "  ")
     for d, row in prog["by_difficulty"].items():
         if row["drills"]:
             print(f"  {d}: caught {row['caught']}, after a refusal {row['caught_after_refusal']}, "
@@ -1321,6 +1364,7 @@ def cmd_redpill(ws: Workspace, args) -> int:
         st = redpill.stats(ws.resolve(fid))
         print(f"{fid}: drills {st['drills']}, caught {st['caught']}, missed {st['missed']}, "
               f"rubber stamps {st['rubber_stamps']}, catch rate {st['catch_rate']}")
+        _print_reviews(st, "  ")
     return 0
 
 
@@ -1598,6 +1642,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--one-in", type=int, help="plant a drill in about 1 of N approval requests")
     sp.add_argument("--difficulty", help="easy, normal, hard, or adaptive")
     sp.add_argument("--author", help="who writes the drills: agent (tailored to each plan) or builtin")
+    sp.add_argument("--max-flags", type=int, help="a catch that names more rows than this is not counted (default 3)")
+    sp.add_argument("--reason", help="off: why drills are turned off (required); on: why settings change")
     sp.add_argument("--gate", choices=("design", "final"), help="brief / seed: which approval gate")
     sp.add_argument("--from", dest="source", help="seed: candidates JSON file, or - for stdin")
     sp.add_argument("--json", action="store_true")

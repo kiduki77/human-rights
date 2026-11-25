@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 import random
 import re
@@ -206,6 +207,13 @@ LATE = {
     "en": "You found it after an approval was refused, so it does not count toward your level.",
     "ko": "승인이 한 번 거부된 뒤에 찾았으므로 난이도 기록에는 넣지 않는다.",
 }
+SCATTERSHOT = {
+    "en": "The planted item was one of the {named} rows you named at once. Naming more than {limit} rows at once "
+          "is not counted as a catch, so this drill stays out of your catch rate and your level. The planted item "
+          "is gone.",
+    "ko": "한 번에 지적한 {named}개 항목 중에 심어둔 항목이 있었다. 한 번에 {limit}개를 넘게 지적하면 찾은 것으로 "
+          "세지 않으므로, 이번 드릴은 찾은 비율과 난이도 기록에서 뺀다. 심어둔 항목은 지웠다.",
+}
 WHY = {"en": "Why it was wrong: {why}", "ko": "틀린 이유: {why}"}
 LEVEL_LINE = {"en": "Difficulty: {level}.", "ko": "난이도: {level}."}
 HOW_TO = {
@@ -240,6 +248,7 @@ def settings(ws: Workspace) -> Dict[str, Any]:
         "language": lang if lang in SCOLD else "en",
         "difficulty": difficulty if difficulty in DIFFICULTY_CHOICES else "adaptive",
         "author": author if author in AUTHORS else "agent",
+        "max_flags": max(1, int(m.get("max_flags", 3) or 3)),
     }
 
 
@@ -902,28 +911,52 @@ def check_before_approval(feature: Feature, gate: str) -> None:
     raise GateError(pool[(act["attempts"] - 1) % len(pool)] + "\n" + HOW_TO[lang])
 
 
-def flag(feature: Feature, item: str, by: str, note: str, proof: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def flag_all(feature: Feature, items: List[str], by: str, note: str,
+             proof: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    ids = list(dict.fromkeys(i.strip().upper() for i in items))
+    return [dict(flag(feature, i, by, note, proof, len(ids)), item=i) for i in ids]
+
+
+def flag(feature: Feature, item: str, by: str, note: str, proof: Optional[Dict[str, Any]] = None,
+         named: int = 1) -> Dict[str, Any]:
     from runtime import docs
 
     if not by:
         raise HRError("--by is required")
     proof = proof or {}
-    lang = settings(feature.ws)["language"]
+    s = settings(feature.ws)
+    lang = s["language"]
     data = load(feature)
     act = data.get("active")
     item = item.strip().upper()
     if act and item == act["id"]:
-        data["history"].append(_record(act, "caught", caught_by=by))
+        scattershot = named > s["max_flags"]
+        data["history"].append(_record(act, "scattershot" if scattershot else "caught", caught_by=by, named=named))
         data["active"] = None
         save(feature, data)
-        feature.emit("redpill_caught", gate=act["gate"], planted_at=act["planted_at"], actor=f"human:{by}", **proof)
+        feature.emit("redpill_caught", gate=act["gate"], planted_at=act["planted_at"], actor=f"human:{by}",
+                     named=named, counted=not scattershot, **proof)
         docs.render(feature)
+        if scattershot:
+            opener = SCATTERSHOT[lang].format(named=named, limit=s["max_flags"])
+            return {"caught": True, "scattershot": True, "message": (opener + "\n" + _lesson(lang, act)).strip()}
         late = "\n" + LATE[lang] if act.get("attempts", 0) else ""
-        return {"caught": True, "message": (PRAISE[lang] + late + "\n" + _lesson(lang, act)).strip()}
+        return {"caught": True, "scattershot": False,
+                "message": (PRAISE[lang] + late + "\n" + _lesson(lang, act)).strip()}
     data.setdefault("flags", []).append({"item": item, "by": by, "note": note, "at": now()})
     save(feature, data)
     feature.emit("human_flagged", item=item, note=note, actor=f"human:{by}", **proof)
-    return {"caught": False, "message": FLAG_NOTED[lang].format(id=item)}
+    return {"caught": False, "scattershot": False, "message": FLAG_NOTED[lang].format(id=item)}
+
+
+def record_decision(feature: Feature, gate: str, by: str, named: int, approved: bool) -> None:
+    s = settings(feature.ws)
+    data = load(feature)
+    data.setdefault("approvals", []).append({
+        "gate": gate, "by": by, "at": now(), "named": named, "approved": approved,
+        "drills_on": s["enabled"] and gate in s["gates"],
+    })
+    save(feature, data)
 
 
 def reveal(feature: Feature, by: str, proof: Optional[Dict[str, Any]] = None) -> str:
@@ -1050,19 +1083,43 @@ def _summary(hist: List[Dict[str, Any]]) -> Dict[str, Any]:
         "drills": len(hist),
         "caught": caught,
         "caught_after_refusal": late,
+        "scattershot": sum(1 for h in hist if h["outcome"] == "scattershot"),
         "missed": len(decided) - caught - late,
         "rubber_stamps": sum(h.get("attempts", 0) for h in hist),
         "catch_rate": round(caught / len(decided), 3) if decided else None,
     }
 
 
+def _reviews(flags: List[Dict[str, Any]], approvals: List[Dict[str, Any]]) -> Dict[str, Any]:
+    n = len(approvals)
+    return {
+        "approvals": n,
+        "approvals_naming_rows": sum(1 for a in approvals if a.get("named", 0) > 0),
+        "approvals_drills_off": sum(1 for a in approvals if not a.get("drills_on")),
+        "rows_not_plant": len(flags),
+        "rows_not_plant_per_approval": round(len(flags) / n, 2) if n else None,
+    }
+
+
 def stats(feature: Feature) -> Dict[str, Any]:
-    return _summary(load(feature).get("history", []))
+    data = load(feature)
+    return {**_summary(data.get("history", [])), **_reviews(data.get("flags", []), data.get("approvals", []))}
+
+
+def workspace_reviews(ws: Workspace) -> Dict[str, Any]:
+    flags: List[Dict[str, Any]] = []
+    approvals: List[Dict[str, Any]] = []
+    for fid in ws.list_features():
+        data = read_json(ws.dir_of(fid) / ".internal" / "redpill.json", None) or {}
+        flags += data.get("flags", [])
+        approvals += data.get("approvals", [])
+    return _reviews(flags, approvals)
 
 
 def progress(ws: Workspace) -> Dict[str, Any]:
     hist = workspace_history(ws)
     out = _summary(hist)
+    out.update(workspace_reviews(ws))
     out["level"] = level(ws)
     out["by_difficulty"] = {d: _summary([h for h in hist if (h.get("difficulty") or "easy") == d])
                             for d in DIFFICULTIES}
@@ -1071,10 +1128,77 @@ def progress(ws: Workspace) -> Dict[str, Any]:
         if h["outcome"] == "missed" and h.get("category"):
             missed[h["category"]] = missed.get(h["category"], 0) + 1
     out["missed_categories"] = dict(sorted(missed.items(), key=lambda kv: -kv[1]))
+    out["max_flags"] = settings(ws)["max_flags"]
+    out["off_periods"] = off_periods(ws)
+    out["off_seconds"] = sum(p["seconds"] for p in out["off_periods"])
+    out["setting_changes"] = sum(1 for e in changes(ws) if e.get("changed"))
     return out
 
 
-def set_config(ws: Workspace, values: Dict[str, Any]) -> None:
+LOG_FILE = "redpill-log.jsonl"
+SETTING_KEYS = ("enabled", "one_in", "gates", "difficulty", "author", "language", "max_flags")
+
+
+def log_path(ws: Workspace):
+    return ws.wf / LOG_FILE
+
+
+def changes(ws: Workspace) -> List[Dict[str, Any]]:
+    path = log_path(ws)
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out
+
+
+def _seconds(start: str, end: Optional[str]) -> int:
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    stop = (datetime.datetime.strptime(end, fmt) if end
+            else datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None))
+    return max(0, int((stop - datetime.datetime.strptime(start, fmt)).total_seconds()))
+
+
+def off_periods(ws: Workspace) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    since: Optional[Dict[str, Any]] = None
+    for e in changes(ws):
+        if not e["enabled"] and since is None:
+            since = e
+        elif e["enabled"] and since is not None:
+            out.append(_period(since, e["at"]))
+            since = None
+    if since is not None:
+        out.append(_period(since, None))
+    return out
+
+
+def _period(start: Dict[str, Any], end: Optional[str]) -> Dict[str, Any]:
+    return {"from": start["at"], "to": end, "seconds": _seconds(start["at"], end), "by": start["by"],
+            "via": start["via"], "reason": start.get("reason", "")}
+
+
+def set_config(ws: Workspace, values: Dict[str, Any], who: Optional[Dict[str, Any]] = None,
+               reason: str = "") -> None:
     from runtime.config import set_section
 
+    before = settings(ws)
     set_section(ws.config_path, "redpill", values)
+    if who is None:
+        return
+    after = settings(ws)
+    changed = {k: [before[k], after[k]] for k in SETTING_KEYS if before[k] != after[k]}
+    action = {True: "on", False: "off"}.get(values.get("enabled"), "set")
+    proof = {k: who[k] for k in ("quote", "prompt_sha256") if k in who}
+    record = {"at": now(), "action": action, "by": who["by"], "via": who["via"], "reason": reason,
+              "changed": changed, "enabled": after["enabled"], **proof}
+    with open(log_path(ws), "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    fid = ws.active_feature_id()
+    if fid:
+        ws.resolve(fid).emit("drill_settings_changed", actor=f"human:{who['by']}", action=action, reason=reason,
+                             changed=changed, via=who["via"], **proof)

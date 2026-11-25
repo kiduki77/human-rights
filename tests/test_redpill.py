@@ -219,7 +219,7 @@ class ConfigAndGuardTest(unittest.TestCase):
             self.assertEqual((s["enabled"], s["one_in"], s["gates"]), (True, 5, ["design"]))
             self.assertEqual(ws.config()["github"]["auto_merge"], False)
             self.assertEqual(ws.config()["docs"]["language"], "en")
-            code, out = r.hr("redpill", "off")
+            code, out = r.hr("redpill", "off", "--reason", "testing")
             self.assertIn("Red pill mode: off", out)
             self.assertFalse(redpill.settings(ws)["enabled"])
             self.assertEqual(redpill.settings(ws)["one_in"], 5)

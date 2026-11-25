@@ -36,6 +36,7 @@ redpill:
   gates: [design, final]
   difficulty: adaptive
   author: agent
+  max_flags: 3
   language: ""
 
 docs:
