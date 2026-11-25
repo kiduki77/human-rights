@@ -542,6 +542,10 @@ def brief(feature: Feature, gate: str) -> Dict[str, Any]:
              "risk": "low", "difficulty": "normal", "category": "scope_beyond_request", "why_wrong": "<...>"},
             {"op": "mutate", "block": "decisions", "target": "DEC-003", "field": "decided_by", "replacement": "user",
              "against": ["REQ-002"], "difficulty": "hard", "category": "contradicts_decision", "why_wrong": "<...>"},
+            {"op": "mutate", "block": "tasks", "target": "TASK-003", "field": "purpose",
+             "replacement": "<the real purpose, widened to work no requirement or decision asks for>",
+             "against": ["REQ-001", "DEC-001"], "difficulty": "hard", "category": "scope_beyond_request",
+             "why_wrong": "<what the task now does that nobody asked for>"},
         ]
         situation = ("Read the code this plan touches (the scope of each task) before you write: a candidate names "
                      "real modules and makes a mistake this code makes likely.")
@@ -568,6 +572,8 @@ def brief(feature: Feature, gate: str) -> Dict[str, Any]:
         "Give at least 8 candidates: 2 easy, 3 normal, 3 hard, in at least 4 different categories.",
         "Each hard candidate changes or removes a real row, names in `against` the IDs the reviewer must compare "
         "it with, and is wrong in a different way from the other hard ones.",
+        *(["Work nobody asked for is drilled at hard by widening a real task's purpose, never by adding a row: "
+           "an added row stands out by its new ID."] if gate == "design" else []),
         f"At most {MAX_NUMBER_ONLY} candidate may differ from the real row by a number only, and it cannot be hard.",
         "Categories: " + ", ".join(CATEGORIES) + ".",
         "Categories used in recent drills - avoid them: " + (", ".join(avoid) or "none") + ".",

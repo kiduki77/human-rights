@@ -343,7 +343,8 @@ A drill is only worth doing if it looks like a real miss, so the runtime refuses
 - **No number games.** A row that differs from the real one by a number only is accepted once per set,
   never as hard, and used last. Scanning a table for numbers is not reviewing.
 - **Hard means hard.** A hard plant is a real row changed or removed, never an extra row, and it names
-  what you have to compare it with. You are told that after the drill.
+  what you have to compare it with. You are told that after the drill. Work nobody asked for comes as a
+  real task that does more than its requirement, with no new ID to give it away.
 - **No repeats.** The kind of flaw and the way it is wrong are recorded, and the next drills differ.
 
 On a host without sub-agents, set `redpill.author: builtin` to use the runtime's own lists and row changes.
