@@ -224,6 +224,11 @@ lines.
 - After writing documents, `hr doc-check` must pass.
 - When the feature completes, include `hr metrics` in the final report. If the host reports token usage
   or agent time, record it first with `hr metrics record --kind tokens --value <n>`.
+- When the human reports a defect found after final approval, or a result that differs from what they meant,
+  record it with `hr metrics record --kind escaped_defect` or `--kind intent_mismatch`. Both need
+  `--visible-at-approval yes|no`. Ask the human: "Was this visible in what you were shown when you approved?"
+  Record their answer. Never infer it from the code or the documents, and never pick a default. Without an
+  answer, do not record. Only `yes` counts as a review miss in `hr metrics`.
 
 ## 7. Sub-agents and parallel execution
 

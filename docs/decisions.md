@@ -187,6 +187,17 @@ Six questions shaped the design early on. This is how v0.1 settles them. Every o
   heartbeat. Before this, a test run longer than 120 s could have its lock taken over.
 - **Metrics the runtime can't observe are recorded explicitly** (`hr metrics record`): tokens, review
   minutes, escaped defects, intent mismatches, unnecessary questions. Everything else comes from the event log.
+- **An escaped defect or intent mismatch records whether it was visible at approval.** A bug that appears
+  only after a later feature is built on the approved one, or a need that changed after approval, could not
+  have been caught by looking at what the human was shown, so no drill can lower that count. With counts
+  this small, two or three such records can hide the effect of the drills. `metrics record` requires
+  `--visible-at-approval yes|no` for those two kinds and refuses it for the others. The answer is required
+  because an optional flag would be left off and every record would stay unknown. It comes from the human,
+  asked every time: the agent could only guess, and neither the code nor the documents show what the human
+  saw at approval. `hr metrics` reports yes, no and unknown separately, and only yes counts as a review miss.
+  Records entered before this change have no answer and show as unknown. They are not counted as yes or no,
+  because there is no way to tell which they were. The answer is stored on the `metric_recorded` event as
+  `visible_at_approval`, so later work can select the records that count.
 - **Template packs are hash-tracked.** Locally customized templates are never overwritten without `--force`.
 
 ## Rows to read closely (`hr:focus`)
